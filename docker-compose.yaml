@@ -1,0 +1,89 @@
+services:
+  django:
+    build:
+      context: .
+      args:
+        DJANGO_SETTINGS_MODULE: Hayari.settings.production
+    container_name: hayari
+    volumes:
+      - ./:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DJANGO_SETTINGS_MODULE=Hayari.settings.production
+      - RUN_MIGRATIONS=1
+    depends_on:
+      - redis
+    networks:
+      - hayari-network
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+    command: >
+      gunicorn Hayari.asgi:application
+          -k uvicorn.workers.UvicornWorker
+          --workers 3
+          --worker-connections 1000
+          --bind 0.0.0.0:8000 
+          --timeout 15
+          --keep-alive 2
+          --max-requests 1000
+          --max-requests-jitter 100
+
+  celery:
+    build: .
+    container_name: hayari-celery
+    command: celery -A Hayari worker -l INFO --concurrency=4
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: Hayari.settings.production
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    networks:
+      - hayari-network
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+
+  celery-beat:
+    build: .
+    container_name: hayari-celery-beat
+    command: celery -A Hayari beat -l INFO
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: Hayari.settings.production
+    volumes:
+      - .:/app
+    networks:
+      - hayari-network
+    depends_on:
+      - redis
+
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: hayari-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - hayari-network
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+
+networks:
+  hayari-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  redis-data:

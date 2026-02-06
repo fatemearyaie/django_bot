@@ -1,0 +1,41 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+.idea/
+.env
+.venv
+.venv
+__pycache__/
+db.sqlite3
+
+# migration files
+**/migrations/**
+!**/migrations
+!**/migrations/__init__.py
+
+
+# Django static and media files
+/static/
+/media/
+
+
+# Django collectstatic output
+/staticfiles/
+
+
+# logs
+logs/
+
+secrets/
+*.json
+hayari-firebase.json
+
+auth_service.py
+
+
+celerybeat-schedule
