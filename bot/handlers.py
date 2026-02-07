@@ -484,11 +484,7 @@ async def confirm_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         country_name = await get_user_country_name(user)
 
         await update.message.reply_text(
-            f"✅ اطلاعات شما ذخیره شد لطفا منتظر تایید ادمین باشید.:\n"
-            f"👤 نام: {user.name}\n"
-            f"👤 فامیلی: {user.last_name}\n"
-            f"🌍 کشور: {country_name}\n"
-            f"شماره:{user.phone}\n",
+            f"✅ اطلاعات شما ذخیره شد لطفا منتظر تایید ادمین باشید.\n",
             reply_markup=main_menu_keyboard
         )
         return ConversationHandler.END
