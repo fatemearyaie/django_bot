@@ -24,7 +24,7 @@ class Country(models.Model):
 
 
 class CustomUser(AbstractBaseUser,PermissionsMixin):
-    telegram_id = models.IntegerField(unique=True, null=True, blank=True)
+    telegram_id = models.BigIntegerField(unique=True, null=True, blank=True)
     telegram_username = models.CharField(max_length=25, null=True, blank=True)
     username = models.CharField(max_length=50, null=True, blank=True, unique=True)
     phone = models.CharField(max_length=12, unique=True, null=True, blank=True)

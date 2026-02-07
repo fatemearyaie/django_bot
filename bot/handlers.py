@@ -53,6 +53,24 @@ main_menu_keyboard = ReplyKeyboardMarkup(
     one_time_keyboard=False,
 )
 
+def build_register_inline_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📝 ثبت نام", callback_data="start_register")]
+    ])
+
+async def start_register_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    context.user_data["existing_profile"] = False
+
+    await query.message.reply_text(
+        "لطفاً اسم خودت رو وارد کن:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return NAME
+
+
 # ================= EDIT FLOW (NEW) =================
 async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -322,7 +340,16 @@ def save_phone(user, phone):
 # ================= START HANDLER =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
-    await get_or_create_user(tg.id, tg.username)
+    user = await get_or_create_user(tg.id, tg.username)
+
+    if not is_profile_complete(user):
+        await update.message.reply_text(
+            f"👋 سلام {tg.username}!\n"
+            "برای استفاده از ربات، لطفاً ثبت‌نام کن 👇",
+            reply_markup=build_register_inline_keyboard()
+        )
+        return
+
     await update.message.reply_text(
         f"👋 سلام {tg.username} ! خوش آمدی.",
         reply_markup=main_menu_keyboard
@@ -527,10 +554,12 @@ def build_application(token):
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler("profile", profile),
-            MessageHandler(filters.Regex("^👤پروفایل$"), profile)
+            MessageHandler(filters.Regex("^👤پروفایل$"), profile),
+            CallbackQueryHandler(start_register_callback, pattern="^start_register$")
+
         ],
         states={
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name),],
             LAST_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_last_name)],
             COUNTRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, country_selected)],
             PHONE: [MessageHandler(filters.CONTACT, get_phone)],
