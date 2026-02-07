@@ -13,7 +13,7 @@ from telegram import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     KeyboardButton,
-    BotCommand,ReplyKeyboardRemove
+    BotCommand, ReplyKeyboardRemove
 )
 from telegram.ext import (
     Application,
@@ -28,7 +28,7 @@ from Users.models import CustomUser, Country
 from asgiref.sync import sync_to_async
 
 # ================= STATE DEFINITIONS =================
-NAME, LAST_NAME, COUNTRY, CITY, PHONE = range(5)
+NAME, LAST_NAME, COUNTRY, PHONE, CONFIRM, EDIT_MENU, EDIT_NAME, EDIT_LAST, EDIT_COUNTRY, EDIT_PHONE = range(10)
 
 # ================= KEYBOARD DEFINITIONS =================
 main_menu_keyboard = ReplyKeyboardMarkup(
@@ -45,9 +45,134 @@ main_menu_keyboard = ReplyKeyboardMarkup(
             KeyboardButton("⁉️درباره ما")
         ]
     ],
-    resize_keyboard = True,
-    one_time_keyboard = False,
+    resize_keyboard=True,
+    one_time_keyboard=False,
 )
+
+# ================= EDIT FLOW (NEW) =================
+
+def build_edit_inline_keyboard():
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✏️ ویرایش نام", callback_data="edit_name")],
+            [InlineKeyboardButton("✏️ ویرایش فامیلی", callback_data="edit_last")],
+            [InlineKeyboardButton("🌍 ویرایش کشور", callback_data="edit_country")],
+            [InlineKeyboardButton("📞 ویرایش شماره", callback_data="edit_phone")],
+            [InlineKeyboardButton("↩️ برگشت به تایید", callback_data="edit_back")],
+        ]
+    )
+
+
+async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+
+    if data == "edit_back":
+        confirm_keyboard = ReplyKeyboardMarkup(
+            [[KeyboardButton("✅ تایید"), KeyboardButton("❌ اصلاح")]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+        await query.message.reply_text("خب، تایید می‌کنی یا اصلاح؟", reply_markup=confirm_keyboard)
+        return CONFIRM
+
+    if data == "edit_name":
+        await query.message.reply_text("✏️ نام جدید را وارد کن:")
+        return EDIT_NAME
+
+    if data == "edit_last":
+        await query.message.reply_text("✏️ فامیلی جدید را وارد کن:")
+        return EDIT_LAST
+
+    if data == "edit_country":
+        countries = await get_available_countries()
+        keyboard = [[KeyboardButton(c.name)] for c in countries]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await query.message.reply_text("🌍 کشور جدید را انتخاب کن:", reply_markup=reply_markup)
+        return EDIT_COUNTRY
+
+    if data == "edit_phone":
+        contact_button = KeyboardButton(text='ارسال شماره تماس', request_contact=True)
+        reply_markup = ReplyKeyboardMarkup([[contact_button]], one_time_keyboard=True, resize_keyboard=True)
+        await query.message.reply_text("📞 شماره جدید را با دکمه زیر ارسال کن:", reply_markup=reply_markup)
+        return EDIT_PHONE
+
+    return EDIT_MENU
+
+
+async def show_preview_and_ask_confirm(update_or_query_message, user, country_name, phone):
+    preview_text = (
+        "🧾 پیش‌نمایش اطلاعات شما:\n\n"
+        f"👤 نام: {user.name or '—'}\n"
+        f"👤 فامیلی: {user.last_name or '—'}\n"
+        f"🌍 کشور: {country_name}\n"
+        f"📞 شماره: {phone}\n\n"
+        "✅ مطمئنی همین اطلاعات ثبت بشه؟"
+    )
+    confirm_keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("✅ تایید"), KeyboardButton("❌ اصلاح")]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    await update_or_query_message.reply_text(preview_text, reply_markup=confirm_keyboard)
+
+
+async def edit_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
+    user.name = update.message.text.strip()
+    await save_user(user)
+
+    phone = context.user_data.get("pending_phone") or user.phone or "—"
+    country_name = await get_user_country_name(user)
+    await show_preview_and_ask_confirm(update.message, user, country_name, phone)
+    return CONFIRM
+
+
+async def edit_last_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
+    user.last_name = update.message.text.strip()
+    await save_user(user)
+
+    phone = context.user_data.get("pending_phone") or user.phone or "—"
+    country_name = await get_user_country_name(user)
+    await show_preview_and_ask_confirm(update.message, user, country_name, phone)
+    return CONFIRM
+
+
+async def edit_country_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
+    country_name_input = update.message.text.strip()
+
+    try:
+        country = await get_country_by_name(country_name_input)
+    except Exception:
+        await update.message.reply_text("❌ کشور پیدا نشد، دوباره انتخاب کن.")
+        return EDIT_COUNTRY
+
+    user.country = country
+    await save_user(user)
+
+    phone = context.user_data.get("pending_phone") or user.phone or "—"
+    country_name = await get_user_country_name(user)
+    await show_preview_and_ask_confirm(update.message, user, country_name, phone)
+    return CONFIRM
+
+
+async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.contact:
+        await update.message.reply_text("❌ لطفاً شماره را با دکمه ارسال شماره تماس ارسال کن.")
+        return EDIT_PHONE
+
+    phone = update.message.contact.phone_number
+    context.user_data["pending_phone"] = phone
+
+    user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
+    country_name = await get_user_country_name(user)
+    await show_preview_and_ask_confirm(update.message, user, country_name, phone)
+    return CONFIRM
+
 
 # ================= USER SERVICE =================
 @sync_to_async
@@ -81,16 +206,11 @@ def get_country_by_name(name):
 
 
 @sync_to_async
-def save_city(user, city_name):
-    user.city = city_name
-    user.save()
-
-
-@sync_to_async
 def get_user_country_name(user):
     if user.country:
         return user.country.name
     return "نامشخص"
+
 
 @sync_to_async
 def save_phone(user, phone):
@@ -104,16 +224,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await get_or_create_user(tg.id, tg.username)
     await update.message.reply_text(
         f"👋 سلام {tg.username} ! خوش آمدی.",
-        reply_markup = main_menu_keyboard
+        reply_markup=main_menu_keyboard
     )
 
+# ================= PROFILE ENTRY =================
 async def profile(update, context):
     tg = update.effective_user
     await get_or_create_user(tg.id, tg.username)
 
     await update.message.reply_text("لطفا اسم خودت رو وارد کن")
-
     return NAME
+
 # ================= NAME HANDLER =================
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(
@@ -163,65 +284,106 @@ async def country_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user.country = country
     await save_user(user)
 
-
-    await update.message.reply_text("🏙 شهر خودت رو وارد کن:",
-                                    reply_markup=ReplyKeyboardRemove())
-    return CITY
-
-
-# ================= CITY HANDLER =================
-async def get_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = await get_or_create_user(
-        update.effective_user.id,
-        update.effective_user.username,
-    )
-    city_name = update.message.text.strip()
-    await save_city(user, city_name)
-
     contact_button = KeyboardButton(
         text='ارسال شماره تماس',
         request_contact=True,
     )
     reply_markup = ReplyKeyboardMarkup(
         [[contact_button]],
-        one_time_keyboard = True,
-        resize_keyboard = True
+        one_time_keyboard=True,
+        resize_keyboard=True
     )
     await update.message.reply_text(
         "شماره تماس خودت رو ارسال کن!",
-        reply_markup = reply_markup
+        reply_markup=reply_markup
     )
     return PHONE
 
 
-async def get_phone(update:Update, context: ContextTypes.DEFAULT_TYPE):
+# ================= PHONE HANDLER=================
+async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(
         update.effective_user.id,
         update.effective_user.username
     )
+
+    if not update.message or not update.message.contact:
+        await update.message.reply_text("❌ لطفاً شماره رو با دکمه «ارسال شماره تماس» ارسال کن.")
+        return PHONE
+
     phone = update.message.contact.phone_number
-    await save_phone(user, phone)
+
+    context.user_data["pending_phone"] = phone
 
     country_name = await get_user_country_name(user)
 
-    await update.message.reply_text(
-        f"✅ اطلاعات شما ذخیره شد:\n"
-        f"👤 نام: {user.name}\n"
-        f"👤 فامیلی: {user.last_name}\n"
+    preview_text = (
+        "🧾 پیش‌نمایش اطلاعات شما:\n\n"
+        f"👤 نام: {user.name or '—'}\n"
+        f"👤 فامیلی: {user.last_name or '—'}\n"
         f"🌍 کشور: {country_name}\n"
-        f"🏙 شهر: {user.city}\n"
-        f"شماره:{user.phone}\n",
-        reply_markup = main_menu_keyboard
+        f"📞 شماره: {phone}\n\n"
+        "✅ مطمئنی همین اطلاعات ثبت بشه؟"
     )
 
-    return ConversationHandler.END
+    confirm_keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("✅ تایید"), KeyboardButton("❌ اصلاح")]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+    await update.message.reply_text(preview_text, reply_markup=confirm_keyboard)
+    return CONFIRM
+
+
+# ================= CONFIRM HANDLER=================
+async def confirm_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = await get_or_create_user(
+        update.effective_user.id,
+        update.effective_user.username
+    )
+
+    text = (update.message.text or "").strip()
+
+    if text == "✅ تایید":
+        pending_phone = context.user_data.get("pending_phone")
+        if not pending_phone:
+            await update.message.reply_text("❌ شماره‌ای برای تایید پیدا نکردم. دوباره شماره را ارسال کن.")
+            contact_button = KeyboardButton(text='ارسال شماره تماس', request_contact=True)
+            reply_markup = ReplyKeyboardMarkup([[contact_button]], one_time_keyboard=True, resize_keyboard=True)
+            await update.message.reply_text("شماره تماس خودت رو ارسال کن!", reply_markup=reply_markup)
+            return PHONE
+
+        await save_phone(user, pending_phone)
+        context.user_data.pop("pending_phone", None)
+
+        country_name = await get_user_country_name(user)
+
+        await update.message.reply_text(
+            f"✅ اطلاعات شما ذخیره شد:\n"
+            f"👤 نام: {user.name}\n"
+            f"👤 فامیلی: {user.last_name}\n"
+            f"🌍 کشور: {country_name}\n"
+            f"شماره:{user.phone}\n",
+            reply_markup=main_menu_keyboard
+        )
+        return ConversationHandler.END
+
+    if text == "❌ اصلاح":
+        await update.message.reply_text(
+            "کدوم بخش رو می‌خوای اصلاح کنی؟",
+            reply_markup=build_edit_inline_keyboard()
+        )
+        return EDIT_MENU
+
+    await update.message.reply_text("❌ لطفاً یکی از گزینه‌ها را انتخاب کن: ✅ تایید یا ❌ اصلاح")
+    return CONFIRM
 
 
 # ================= CANCEL HANDLER =================
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ ثبت اطلاعات لغو شد.")
     return ConversationHandler.END
-
 
 
 async def post_init(application: Application):
@@ -239,16 +401,27 @@ async def post_init(application: Application):
 def build_application(token):
     application = Application.builder().token(token).build()
 
+    application.post_init = post_init
+
     # Conversation handler
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("profile", profile),
-                      MessageHandler(filters.Regex("^👤پروفایل$"), profile)],
+        entry_points=[
+            CommandHandler("profile", profile),
+            MessageHandler(filters.Regex("^👤پروفایل$"), profile)
+        ],
         states={
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
             LAST_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_last_name)],
             COUNTRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, country_selected)],
-            CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_city)],
-            PHONE: [MessageHandler(filters.CONTACT, get_phone)]
+            PHONE: [MessageHandler(filters.CONTACT, get_phone)],
+
+            CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_profile)],
+
+            EDIT_MENU: [CallbackQueryHandler(edit_menu_callback, pattern=r"^edit_(name|last|country|phone|back)$")],
+            EDIT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_name_text)],
+            EDIT_LAST: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_last_text)],
+            EDIT_COUNTRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_country_text)],
+            EDIT_PHONE: [MessageHandler(filters.CONTACT, edit_phone_contact)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         per_user=True,
@@ -258,10 +431,9 @@ def build_application(token):
     )
     application.add_handler(conv_handler)
 
-
-
-    application.add_handler(CommandHandler("start",start))
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("search", search))
 
     application.add_handler(MessageHandler(filters.Regex("^👤پروفایل$"), profile))
+
     return application
