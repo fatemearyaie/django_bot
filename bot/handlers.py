@@ -70,13 +70,11 @@ async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     data = query.data
 
     if data == "edit_back":
-        # اگر کاربر از قبل پروفایل کامل داشته، برگرد به نمایش پروفایل + ادیت
         if context.user_data.get("existing_profile"):
             user = await get_or_create_user(query.from_user.id, query.from_user.username)
             await query.message.reply_text("برگشتیم به پروفایل:", reply_markup=build_edit_inline_keyboard())
             return EDIT_MENU
 
-        # اگر در جریان ثبت‌نام بود، همون تایید/اصلاح قبلی
         confirm_keyboard = ReplyKeyboardMarkup(
             [[KeyboardButton("✅ تایید"), KeyboardButton("❌ اصلاح")]],
             resize_keyboard=True,
@@ -186,9 +184,17 @@ async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("❌ لطفاً شماره را با دکمه ارسال شماره تماس ارسال کن.")
         return EDIT_PHONE
 
+    phone = update.message.contact.phone_number
+    user = await get_or_create_user(
+        update.effective_user.id,
+        update.effective_user.username
+    )
 
     if context.user_data.get("existing_profile"):
         await save_phone(user, phone)
+
+        await update.message.reply_text("✅ دریافت شد.", reply_markup=main_menu_keyboard)
+
         await show_profile(update, user)
         return EDIT_MENU
 
@@ -277,17 +283,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def profile(update, context):
     tg = update.effective_user
 
-    # اول بررسی کن آیا user وجود داره (بدون ساختن)
     existing_user = await get_user_by_tg_id(tg.id)
 
-    # اگر پروفایل کامل بود → نمایش پروفایل + منوی ادیت
     if existing_user and is_profile_complete(existing_user):
-        context.user_data["existing_profile"] = True  # فلگ مود ادیت مستقیم
-        context.user_data["pending_phone"] = existing_user.phone  # برای سازگاری با جریان قبلی
+        context.user_data["existing_profile"] = True
+        context.user_data["pending_phone"] = existing_user.phone
         await show_profile(update, existing_user)
         return EDIT_MENU
 
-    # اگر وجود نداشت یا کامل نبود → پروسه ثبت‌نام رو شروع کن
     user = await get_or_create_user(tg.id, tg.username)
     context.user_data["existing_profile"] = False
     await update.message.reply_text("لطفا اسم خودت رو وارد کن")
