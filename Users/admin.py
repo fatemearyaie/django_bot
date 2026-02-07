@@ -8,10 +8,10 @@ from Users.models import CustomUser, Country
 
 @admin.register(CustomUser)
 class CustomUserAdmin(ModelAdmin):
-    list_display = ['username', 'phone','date_joined', 'name', 'last_name', 'country', 'city']
+    list_display = ['username', 'phone','date_joined', 'name', 'last_name', 'country',]
     search_fields = ['username', 'phone', ]
     fields = ['username','phone', 'name', 'last_name', 'country',
-              'city', 'telegram_username', 'telegram_id']
+              'telegram_username', 'telegram_id']
 
 
 @admin.register(Country)

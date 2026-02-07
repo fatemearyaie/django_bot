@@ -70,6 +70,13 @@ async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     data = query.data
 
     if data == "edit_back":
+        # اگر کاربر از قبل پروفایل کامل داشته، برگرد به نمایش پروفایل + ادیت
+        if context.user_data.get("existing_profile"):
+            user = await get_or_create_user(query.from_user.id, query.from_user.username)
+            await query.message.reply_text("برگشتیم به پروفایل:", reply_markup=build_edit_inline_keyboard())
+            return EDIT_MENU
+
+        # اگر در جریان ثبت‌نام بود، همون تایید/اصلاح قبلی
         confirm_keyboard = ReplyKeyboardMarkup(
             [[KeyboardButton("✅ تایید"), KeyboardButton("❌ اصلاح")]],
             resize_keyboard=True,
@@ -124,16 +131,26 @@ async def edit_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user.name = update.message.text.strip()
     await save_user(user)
 
+    if context.user_data.get("existing_profile"):
+        await show_profile(update, user)
+        return EDIT_MENU
+
     phone = context.user_data.get("pending_phone") or user.phone or "—"
     country_name = await get_user_country_name(user)
     await show_preview_and_ask_confirm(update.message, user, country_name, phone)
+
     return CONFIRM
+
 
 
 async def edit_last_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     user.last_name = update.message.text.strip()
     await save_user(user)
+
+    if context.user_data.get("existing_profile"):
+        await show_profile(update, user)
+        return EDIT_MENU
 
     phone = context.user_data.get("pending_phone") or user.phone or "—"
     country_name = await get_user_country_name(user)
@@ -154,6 +171,10 @@ async def edit_country_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user.country = country
     await save_user(user)
 
+    if context.user_data.get("existing_profile"):
+        await show_profile(update, user)
+        return EDIT_MENU
+
     phone = context.user_data.get("pending_phone") or user.phone or "—"
     country_name = await get_user_country_name(user)
     await show_preview_and_ask_confirm(update.message, user, country_name, phone)
@@ -165,6 +186,12 @@ async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("❌ لطفاً شماره را با دکمه ارسال شماره تماس ارسال کن.")
         return EDIT_PHONE
 
+
+    if context.user_data.get("existing_profile"):
+        await save_phone(user, phone)
+        await show_profile(update, user)
+        return EDIT_MENU
+
     phone = update.message.contact.phone_number
     context.user_data["pending_phone"] = phone
 
@@ -175,6 +202,25 @@ async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 # ================= USER SERVICE =================
+@sync_to_async
+def get_user_by_tg_id(tg_id):
+    return CustomUser.objects.filter(telegram_id=tg_id).first()
+
+def is_profile_complete(user: CustomUser) -> bool:
+    return bool(user and user.name and user.last_name and user.country_id and user.phone)
+
+async def show_profile(update: Update, user: CustomUser):
+    country_name = await get_user_country_name(user)
+    text = (
+        "👤 پروفایل شما:\n\n"
+        f"👤 نام: {user.name or '—'}\n"
+        f"👤 فامیلی: {user.last_name or '—'}\n"
+        f"🌍 کشور: {country_name}\n"
+        f"📞 شماره: {user.phone or '—'}\n\n"
+        "برای ویرایش، یکی از گزینه‌های زیر را انتخاب کن:"
+    )
+    await update.message.reply_text(text, reply_markup=build_edit_inline_keyboard())
+
 @sync_to_async
 def get_or_create_user(tg_id, tg_username):
     user, created = CustomUser.objects.get_or_create(
@@ -230,10 +276,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ================= PROFILE ENTRY =================
 async def profile(update, context):
     tg = update.effective_user
-    await get_or_create_user(tg.id, tg.username)
 
+    # اول بررسی کن آیا user وجود داره (بدون ساختن)
+    existing_user = await get_user_by_tg_id(tg.id)
+
+    # اگر پروفایل کامل بود → نمایش پروفایل + منوی ادیت
+    if existing_user and is_profile_complete(existing_user):
+        context.user_data["existing_profile"] = True  # فلگ مود ادیت مستقیم
+        context.user_data["pending_phone"] = existing_user.phone  # برای سازگاری با جریان قبلی
+        await show_profile(update, existing_user)
+        return EDIT_MENU
+
+    # اگر وجود نداشت یا کامل نبود → پروسه ثبت‌نام رو شروع کن
+    user = await get_or_create_user(tg.id, tg.username)
+    context.user_data["existing_profile"] = False
     await update.message.reply_text("لطفا اسم خودت رو وارد کن")
     return NAME
+
 
 # ================= NAME HANDLER =================
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -360,7 +419,7 @@ async def confirm_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         country_name = await get_user_country_name(user)
 
         await update.message.reply_text(
-            f"✅ اطلاعات شما ذخیره شد:\n"
+            f"✅ اطلاعات شما ذخیره شد لطفا منتظر تایید پروفایل خود بمانید:\n"
             f"👤 نام: {user.name}\n"
             f"👤 فامیلی: {user.last_name}\n"
             f"🌍 کشور: {country_name}\n"

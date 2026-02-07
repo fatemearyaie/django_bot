@@ -31,7 +31,6 @@ class CustomUser(AbstractBaseUser,PermissionsMixin):
     name = models.CharField(max_length=50, null=True, blank=True)
     last_name = models.CharField(max_length=50, null=True, blank=True)
     country = models.ForeignKey(Country, on_delete=models.SET_NULL, null=True, blank=True)
-    city = models.CharField(max_length=25, null=True, blank=True)
 
 
 
