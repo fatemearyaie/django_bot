@@ -11,7 +11,7 @@ class CustomUserAdmin(ModelAdmin):
     list_display = ['username', 'phone','date_joined', 'name', 'last_name', 'country',]
     search_fields = ['username', 'phone', ]
     fields = ['username','phone', 'name', 'last_name', 'country',
-              'telegram_username', 'telegram_id']
+              'telegram_username', 'telegram_id', 'is_registered']
 
 
 @admin.register(Country)
