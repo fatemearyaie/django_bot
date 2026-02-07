@@ -1,8 +1,6 @@
 import os
 from re import search
-
 import django
-from django.template.context_processors import request
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
@@ -26,6 +24,12 @@ from telegram.ext import (
 )
 from Users.models import CustomUser, Country
 from asgiref.sync import sync_to_async
+from telegram.constants import ChatMemberStatus
+
+
+
+REQUIRED_CHANNEL = "@testmestplat"
+CHANNEL_JOIN_URL = f"https://t.me/{REQUIRED_CHANNEL.lstrip('@')}"
 
 # ================= STATE DEFINITIONS =================
 NAME, LAST_NAME, COUNTRY, PHONE, CONFIRM, EDIT_MENU, EDIT_NAME, EDIT_LAST, EDIT_COUNTRY, EDIT_PHONE = range(10)
@@ -50,6 +54,40 @@ main_menu_keyboard = ReplyKeyboardMarkup(
 )
 
 # ================= EDIT FLOW (NEW) =================
+async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    ok = await is_member_of_required_channel(context.bot, query.from_user.id)
+    if not ok:
+        await query.message.reply_text("❌ هنوز عضو کانال نیستی. اول عضو شو بعد دوباره بزن.")
+        return CONFIRM
+
+
+    user = await get_or_create_user(query.from_user.id, query.from_user.username)
+
+    pending_phone = context.user_data.get("pending_phone")
+    if not pending_phone:
+        await query.message.reply_text("❌ شماره‌ای برای ثبت نهایی ندارم. لطفاً دوباره شماره را ارسال کن.")
+        contact_button = KeyboardButton(text='ارسال شماره تماس', request_contact=True)
+        reply_markup = ReplyKeyboardMarkup([[contact_button]], one_time_keyboard=True, resize_keyboard=True)
+        await query.message.reply_text("شماره تماس خودت رو ارسال کن!", reply_markup=reply_markup)
+        return PHONE
+
+    await save_phone(user, pending_phone)
+    context.user_data.pop("pending_phone", None)
+
+    country_name = await get_user_country_name(user)
+
+    await query.message.reply_text(
+        f"✅ اطلاعات شما ذخیره شد لطفا منتظر تایید ادمین باشید:\n"
+        f"👤 نام: {user.name}\n"
+        f"👤 فامیلی: {user.last_name}\n"
+        f"🌍 کشور: {country_name}\n"
+        f"شماره:{user.phone}\n",
+        reply_markup=main_menu_keyboard
+    )
+    return ConversationHandler.END
 
 def build_edit_inline_keyboard():
     return InlineKeyboardMarkup(
@@ -208,6 +246,17 @@ async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 # ================= USER SERVICE =================
+async def is_member_of_required_channel(bot, user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
+        return member.status in (
+            ChatMemberStatus.MEMBER,
+            ChatMemberStatus.ADMINISTRATOR,
+            ChatMemberStatus.OWNER,
+        )
+    except Exception:
+        return False
+
 @sync_to_async
 def get_user_by_tg_id(tg_id):
     return CustomUser.objects.filter(telegram_id=tg_id).first()
@@ -416,13 +465,26 @@ async def confirm_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("شماره تماس خودت رو ارسال کن!", reply_markup=reply_markup)
             return PHONE
 
+        ok = await is_member_of_required_channel(context.bot, update.effective_user.id)
+        if not ok:
+            join_keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔗 عضویت در کانال", url=CHANNEL_JOIN_URL)],
+                [InlineKeyboardButton("✅ عضو شدم، بررسی کن", callback_data="check_join")]
+            ])
+            await update.message.reply_text(
+                "❌ تا عضو کانال نشی نمی‌تونی از خدمات ربات استفاده کنی.\n"
+                "اول عضو شو، بعد روی «✅ عضو شدم، بررسی کن» بزن.",
+                reply_markup=join_keyboard
+            )
+            return CONFIRM
+
         await save_phone(user, pending_phone)
         context.user_data.pop("pending_phone", None)
 
         country_name = await get_user_country_name(user)
 
         await update.message.reply_text(
-            f"✅ اطلاعات شما ذخیره شد لطفا منتظر تایید پروفایل خود بمانید:\n"
+            f"✅ اطلاعات شما ذخیره شد لطفا منتظر تایید ادمین باشید.:\n"
             f"👤 نام: {user.name}\n"
             f"👤 فامیلی: {user.last_name}\n"
             f"🌍 کشور: {country_name}\n"
@@ -477,7 +539,10 @@ def build_application(token):
             COUNTRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, country_selected)],
             PHONE: [MessageHandler(filters.CONTACT, get_phone)],
 
-            CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_profile)],
+            CONFIRM: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_profile),
+                CallbackQueryHandler(check_join_callback, pattern=r"^check_join$"),
+            ],
 
             EDIT_MENU: [CallbackQueryHandler(edit_menu_callback, pattern=r"^edit_(name|last|country|phone|back)$")],
             EDIT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_name_text)],
