@@ -64,6 +64,114 @@ def build_edit_request_inline_keyboard():
         ]
     )
 
+# ====== MY REQUESTS ======
+MYREQ_PAGE_SIZE = 5
+
+@sync_to_async
+def fetch_user_requests(user_id: int, page: int):
+    qs = TradeRequest.objects.filter(owner_id=user_id).order_by("-created_at")
+    total = qs.count()
+    start = page * MYREQ_PAGE_SIZE
+    end = start + MYREQ_PAGE_SIZE
+    items = list(qs[start:end])
+    return items, total
+
+
+def _role_fa(role: str) -> str:
+    return "خریدار" if role == TradeRequest.Role.BUYER else "فروشنده"
+
+
+def _status_fa(status: str) -> str:
+    mapping = {
+        TradeRequest.Status.DRAFT: "پیش‌نویس",
+        TradeRequest.Status.PENDING_ADMIN: "در انتظار تایید ادمین",
+        TradeRequest.Status.APPROVED: "تایید شده",
+        TradeRequest.Status.POSTED: "منتشر شده",
+        TradeRequest.Status.CLOSED: "بسته شده",
+    }
+    return mapping.get(status, status)
+
+
+def build_myreq_pagination_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
+    max_page = max((total - 1) // MYREQ_PAGE_SIZE, 0)
+
+    row = []
+    if page > 0:
+        row.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"myreq:{page-1}"))
+    if page < max_page:
+        row.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"myreq:{page+1}"))
+
+    rows = []
+    if row:
+        rows.append(row)
+
+    rows.append([InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"myreq:{page}")])
+    return InlineKeyboardMarkup(rows)
+
+
+async def send_my_requests_list(message_obj, user: CustomUser, page: int):
+    items, total = await fetch_user_requests(user.id, page)
+
+    if total == 0:
+        await message_obj.reply_text("📥 هنوز هیچ درخواستی ثبت نکردی.", reply_markup=build_main_menu_keyboard())
+        return
+
+    max_page = max((total - 1) // MYREQ_PAGE_SIZE, 0)
+    page = max(0, min(page, max_page))
+
+    lines = [
+        f"📥 *درخواست‌های من* (صفحه {page+1} از {max_page+1})",
+        "",
+    ]
+
+    for r in items:
+        amount = getattr(r, "amount", None)
+        amount_txt = f"{amount}" if amount is not None else "—"
+
+        lines.append(
+            "—————————————————————"
+            f"\n🆔 #{r.id}"
+            f"\n👤 {_role_fa(r.role)} | 💱 {r.currency}"
+            f"\n💰 مقدار: {amount_txt} | 🏷 قیمت واحد: {r.unit_price_irt:,} تومان"
+            f"\n📌 وضعیت: {_status_fa(r.status)}"
+        )
+
+    text = "\n".join(lines)
+
+    await message_obj.reply_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=build_myreq_pagination_keyboard(page, total),
+        disable_web_page_preview=True,
+    )
+
+
+async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg = update.effective_user
+    user = await get_user_by_tg(tg.id)
+
+    if not user:
+        await update.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
+        return
+
+    await send_my_requests_list(update.message, user, page=0)
+
+
+async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    user = await get_user_by_tg(q.from_user.id)
+    if not user:
+        await q.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
+        return
+
+    try:
+        page = int(q.data.split(":", 1)[1])
+    except Exception:
+        page = 0
+
+    await send_my_requests_list(q.message, user, page=page)
 
 # ====== DB HELPERS ======
 @sync_to_async
@@ -429,6 +537,12 @@ async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ ثبت درخواست لغو شد.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+def get_my_requests_handlers():
+    return [
+        CommandHandler("requests", my_requests_entry),
+        MessageHandler(filters.Regex(r"^📥درخواست‌های من$"), my_requests_entry),
+        CallbackQueryHandler(my_requests_page_cb, pattern=r"^myreq:\d+$"),
+    ]
 
 def get_trade_request_conversation():
     return ConversationHandler(
