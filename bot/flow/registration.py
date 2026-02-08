@@ -146,6 +146,7 @@ async def is_member_of_required_channel(bot, user_id: int) -> bool:
 
 
 # ====== UI helpers ======
+
 async def show_profile(update: Update, user: CustomUser):
     country_name = await get_user_country_name(user)
     text = (
@@ -326,10 +327,8 @@ async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     data = query.data
 
     if data == "edit_back":
-        # اگر پروفایل موجود بود → همون صفحه پروفایل رو نشون بده
         if context.user_data.get("existing_profile"):
             user = await get_or_create_user(query.from_user.id, query.from_user.username)
-            # ساخت یک "Update-like" ساده نداریم، پس متن رو همینجا می‌فرستیم:
             country_name = await get_user_country_name(user)
             text = (
                 "👤 پروفایل شما:\n\n"
@@ -431,7 +430,6 @@ async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE)
     phone = update.message.contact.phone_number
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
 
-    # اگر پروفایل قبلاً موجود بود → مستقیم ذخیره کن و کیبورد Contact رو ببند
     if context.user_data.get("existing_profile"):
         await save_phone(user, phone)
         await update.message.reply_text("✅ شماره جدید ذخیره شد.", reply_markup=build_main_menu_keyboard())

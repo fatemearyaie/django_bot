@@ -32,9 +32,11 @@ class TradeRequest(models.Model):
     role = models.CharField(max_length=10, choices=Role.choices)
     currency = models.CharField(max_length=5, choices=Currency.choices)
 
-    unit_price_irt = models.BigIntegerField()
+    amount = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    unit_price_irt = models.BigIntegerField(null=True, blank=True)
+    fee_irt = models.BigIntegerField(null=True, blank=True)
 
-    deal_method = models.CharField(max_length=20, choices=DealMethod.choices)
+    deal_method = models.CharField(max_length=20, choices=DealMethod.choices, default=DealMethod.PAYPAL)
     description = models.TextField(blank=True, default="")
 
     status = models.CharField(max_length=32, choices=Status.choices, default=Status.DRAFT)

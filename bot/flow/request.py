@@ -1,0 +1,457 @@
+from decimal import Decimal, InvalidOperation
+from decouple import config
+from bot.handlers import build_main_menu_keyboard
+from telegram import (
+    Update, ReplyKeyboardMarkup, KeyboardButton,
+    InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+)
+from telegram.ext import (
+    ContextTypes, ConversationHandler, CommandHandler,
+    MessageHandler, CallbackQueryHandler, filters
+)
+from asgiref.sync import sync_to_async
+
+from Users.models import CustomUser
+from Trade.models.models import TradeRequest
+
+
+# ====== STATES ======
+TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
+
+# ====== KEYBOARDS ======
+side_key = ReplyKeyboardMarkup(
+    [[KeyboardButton("خریدارم"), KeyboardButton("فروشنده ام")]],
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
+
+currency_key = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("EUR"), KeyboardButton("USD")],
+        [KeyboardButton("GBP"), KeyboardButton("AED")],
+        [KeyboardButton("TRY"), KeyboardButton("CAD")]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+method_key = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("پی پال"), KeyboardButton("حواله")],
+        [KeyboardButton("نقدی"), KeyboardButton("سایر")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+confirm_key = ReplyKeyboardMarkup(
+    [[KeyboardButton("✅ تایید و ارسال"), KeyboardButton("❌ اصلاح")]],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+
+def build_edit_request_inline_keyboard():
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✏️ اصلاح نقش (خریدار/فروشنده)", callback_data="req_edit_side")],
+            [InlineKeyboardButton("💱 اصلاح ارز", callback_data="req_edit_currency")],
+            [InlineKeyboardButton("💰 اصلاح مقدار", callback_data="req_edit_amount")],
+            [InlineKeyboardButton("🏷 اصلاح قیمت هر واحد", callback_data="req_edit_price")],
+            [InlineKeyboardButton("💳 اصلاح روش معامله", callback_data="req_edit_method")],
+            [InlineKeyboardButton("📝 اصلاح توضیحات", callback_data="req_edit_desc")],
+            [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit_back")],
+        ]
+    )
+
+
+# ====== DB HELPERS ======
+@sync_to_async
+def get_user_by_tg(tg_id: int):
+    return CustomUser.objects.filter(telegram_id=tg_id).first()
+
+
+def is_profile_ok(user: CustomUser) -> bool:
+    return bool(
+        user
+        and user.is_registered
+        and user.name
+        and user.last_name
+        and user.country_id
+        and user.phone
+    )
+
+
+@sync_to_async
+def create_exchange_request(
+    owner: CustomUser,
+    role: str,
+    currency: str,
+    amount: Decimal,
+    unit_price_irt: int,
+    deal_method: str,
+    description: str,
+    fee_irt: int,
+):
+    return TradeRequest.objects.create(
+        owner=owner,
+        role=role,
+        currency=currency,
+        amount=amount,
+        unit_price_irt=unit_price_irt,
+        fee_irt=fee_irt,
+        deal_method=deal_method,
+        description=description or "",
+        status=TradeRequest.Status.PENDING_ADMIN,
+    )
+
+
+# ====== NORMALIZERS ======
+def map_role(text: str) -> str | None:
+    t = (text or "").strip()
+    if t == "خریدارم":
+        return TradeRequest.Role.BUYER
+    if t == "فروشنده ام":
+        return TradeRequest.Role.SELLER
+    return None
+
+
+def map_method(text: str) -> str | None:
+    t = (text or "").strip()
+    if t == "پی پال":
+        return TradeRequest.DealMethod.PAYPAL
+    if t == "حواله":
+        return TradeRequest.DealMethod.TRANSFER
+    if t == "نقدی":
+        return TradeRequest.DealMethod.CASH
+    if t == "سایر":
+        return TradeRequest.DealMethod.TRANSFER
+    return None
+
+
+def parse_amount(text: str) -> Decimal | None:
+    t = (text or "").strip().replace(",", ".")
+    try:
+        val = Decimal(t)
+        if val <= 0:
+            return None
+        return val
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def parse_unit_price(text: str) -> int | None:
+    t = (text or "").strip().replace(",", "").replace("_", "")
+    if not t.isdigit():
+        return None
+    v = int(t)
+    if v <= 0:
+        return None
+    return v
+
+
+def get_fee_irt() -> int:
+    return int(config("TRADE_REQUEST_FEE"))
+
+
+async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
+    data = context.user_data.get("tr", {})
+    fee = get_fee_irt()
+
+    amount = data.get("amount")
+    unit_price = data.get("unit_price_irt")
+    total = None
+    if amount is not None and unit_price is not None:
+        total = amount * Decimal(unit_price)
+
+    preview = (
+        "🧾 پیش‌نمایش درخواست شما:\n\n"
+        f"👤 نقش: {'خریدار' if data.get('role') == TradeRequest.Role.BUYER else 'فروشنده'}\n"
+        f"💱 ارز: {data.get('currency')}\n"
+        f"💰 مقدار: {amount}\n"
+        f"🏷 قیمت هر واحد (تومان): {unit_price}\n"
+        f"🔁 روش معامله: {data.get('deal_method')}\n"
+        f"📝 توضیحات: {data.get('description') or '—'}\n"
+        f"💸 کارمزد ثابت (تومان): {fee}\n"
+    )
+    if total is not None:
+        preview += f"\n📌 مجموع بدون کارمزد: {total}\n📌 مجموع با کارمزد: {total + Decimal(fee)}\n"
+
+    preview += "\n✅ از ارسال مطمئنی؟"
+
+    await message_obj.reply_text(preview, reply_markup=confirm_key)
+
+
+def build_edit_request_inline_keyboard():
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✏️ اصلاح نقش (خریدار/فروشنده)", callback_data="req_edit:role")],
+            [InlineKeyboardButton("💱 اصلاح ارز", callback_data="req_edit:currency")],
+            [InlineKeyboardButton("💰 اصلاح مقدار", callback_data="req_edit:amount")],
+            [InlineKeyboardButton("🏷 اصلاح قیمت هر واحد", callback_data="req_edit:unit_price_irt")],
+            [InlineKeyboardButton("💳 اصلاح روش معامله", callback_data="req_edit:deal_method")],
+            [InlineKeyboardButton("📝 اصلاح توضیحات", callback_data="req_edit:description")],
+            [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit:back")],
+        ]
+    )
+
+
+async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    action = q.data.split(":", 1)[1]
+
+    if action == "back":
+        await q.message.reply_text("🔁 برگشتیم به پیش‌نمایش:", reply_markup=ReplyKeyboardRemove())
+        await send_preview(q.message, context)
+        return TR_CONFIRM
+
+    context.user_data["tr_edit_field"] = action
+
+    if action == "role":
+        await q.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
+        return TR_EDIT_VALUE
+
+    if action == "currency":
+        await q.message.reply_text("💱 ارز مورد نظرت چیه؟", reply_markup=currency_key)
+        return TR_EDIT_VALUE
+
+    if action == "amount":
+        await q.message.reply_text("💰 مقدار ارز رو وارد کن (مثلاً 100 یا 250.5):", reply_markup=ReplyKeyboardRemove())
+        return TR_EDIT_VALUE
+
+    if action == "unit_price_irt":
+        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):", reply_markup=ReplyKeyboardRemove())
+        return TR_EDIT_VALUE
+
+    if action == "deal_method":
+        await q.message.reply_text("🔁 روش معاملت چیه؟", reply_markup=method_key)
+        return TR_EDIT_VALUE
+
+    if action == "description":
+        await q.message.reply_text("📝 توضیحاتی داری؟ (اگر نداری «-» بزن)", reply_markup=ReplyKeyboardRemove())
+        return TR_EDIT_VALUE
+
+    await q.message.reply_text("❌ گزینه نامعتبر.")
+    return TR_EDIT_MENU
+
+
+async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    field = context.user_data.get("tr_edit_field")
+    data = context.user_data.get("tr", {})
+
+    if not field:
+        await update.message.reply_text("❌ خطا. دوباره اصلاح رو بزن.")
+        return TR_CONFIRM
+
+    txt = (update.message.text or "").strip()
+
+    if field == "role":
+        role = map_role(txt)
+        if not role:
+            await update.message.reply_text("❌ یکی از گزینه‌ها رو انتخاب کن.", reply_markup=side_key)
+            return TR_EDIT_VALUE
+        data["role"] = role
+
+    elif field == "currency":
+        cur = txt.upper()
+        allowed = {c[0] for c in TradeRequest.Currency.choices}
+        if cur not in allowed:
+            await update.message.reply_text("❌ ارز نامعتبره.", reply_markup=currency_key)
+            return TR_EDIT_VALUE
+        data["currency"] = cur
+
+    elif field == "amount":
+        amount = parse_amount(txt)
+        if amount is None:
+            await update.message.reply_text("❌ مقدار نامعتبره. مثال: 100 یا 250.5")
+            return TR_EDIT_VALUE
+        data["amount"] = amount
+
+    elif field == "unit_price_irt":
+        unit_price = parse_unit_price(txt)
+        if unit_price is None:
+            await update.message.reply_text("❌ قیمت نامعتبره. فقط عدد صحیح. مثال: 75000")
+            return TR_EDIT_VALUE
+        data["unit_price_irt"] = unit_price
+
+    elif field == "deal_method":
+        method = map_method(txt)
+        if not method:
+            await update.message.reply_text("❌ یکی از گزینه‌ها رو انتخاب کن.", reply_markup=method_key)
+            return TR_EDIT_VALUE
+        data["deal_method"] = method
+
+    elif field == "description":
+        if txt == "-":
+            txt = ""
+        data["description"] = txt
+
+    context.user_data["tr"] = data
+    context.user_data.pop("tr_edit_field", None)
+
+    await update.message.reply_text("✅ اصلاح شد.", reply_markup=ReplyKeyboardRemove())
+    await send_preview(update.message, context)
+    return TR_CONFIRM
+
+
+# ================== FLOW HANDLERS ==================
+async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg = update.effective_user
+
+    user = await get_user_by_tg(tg.id)
+    if not is_profile_ok(user):
+        await update.message.reply_text(
+            "❌ برای ثبت درخواست باید اول ثبت‌نامت کامل باشه و ادمین تاییدت کرده باشه.\n"
+            "لطفاً از بخش 👤پروفایل ثبت‌نام رو کامل کن."
+        )
+        return ConversationHandler.END
+
+    context.user_data["tr"] = {}
+    await update.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
+    return TR_ROLE
+
+
+async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    role = map_role(update.message.text)
+    if not role:
+        await update.message.reply_text("❌ لطفاً یکی از گزینه‌ها رو انتخاب کن.", reply_markup=side_key)
+        return TR_ROLE
+
+    context.user_data["tr"]["role"] = role
+    await update.message.reply_text("💱 ارز مورد نظرت چیه؟", reply_markup=currency_key)
+    return TR_CURRENCY
+
+
+async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cur = (update.message.text or "").strip().upper()
+    allowed = {c[0] for c in TradeRequest.Currency.choices}
+    if cur not in allowed:
+        await update.message.reply_text("❌ ارز نامعتبره. یکی از گزینه‌ها رو انتخاب کن.", reply_markup=currency_key)
+        return TR_CURRENCY
+
+    context.user_data["tr"]["currency"] = cur
+    await update.message.reply_text("💰 مقدار ارز رو وارد کن (مثلاً 100 یا 250.5):", reply_markup=ReplyKeyboardRemove())
+    return TR_AMOUNT
+
+
+async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    amount = parse_amount(update.message.text)
+    if amount is None:
+        await update.message.reply_text("❌ مقدار نامعتبره. مثال: 100 یا 250.5")
+        return TR_AMOUNT
+
+    context.user_data["tr"]["amount"] = amount
+    await update.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):")
+    return TR_UNIT_PRICE
+
+
+async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    unit_price = parse_unit_price(update.message.text)
+    if unit_price is None:
+        await update.message.reply_text("❌ قیمت نامعتبره. فقط عدد صحیح وارد کن. مثال: 75000")
+        return TR_UNIT_PRICE
+
+    context.user_data["tr"]["unit_price_irt"] = unit_price
+    await update.message.reply_text("🔁 روش معاملت چیه؟", reply_markup=method_key)
+    return TR_METHOD
+
+
+async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    method = map_method(update.message.text)
+    if not method:
+        await update.message.reply_text("❌ لطفاً یکی از گزینه‌ها رو انتخاب کن.", reply_markup=method_key)
+        return TR_METHOD
+
+    context.user_data["tr"]["deal_method"] = method
+    await update.message.reply_text("📝 توضیحاتی داری؟ (اگر نداری «-» بزن)", reply_markup=ReplyKeyboardRemove())
+    return TR_DESC
+
+
+async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    desc = (update.message.text or "").strip()
+    if desc == "-":
+        desc = ""
+    context.user_data["tr"]["description"] = desc
+
+    await send_preview(update.message, context)
+    return TR_CONFIRM
+
+
+async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.message.text or "").strip()
+
+    if text == "❌ اصلاح":
+        await update.message.reply_text(
+
+            "کدوم بخش رو می‌خوای اصلاح کنی؟",
+            reply_markup=build_edit_request_inline_keyboard()
+        )
+        return TR_EDIT_MENU
+
+    if text != "✅ تایید و ارسال":
+        await update.message.reply_text("❌ یکی از گزینه‌ها رو انتخاب کن.", reply_markup=confirm_key)
+        return TR_CONFIRM
+
+    tg = update.effective_user
+    user = await get_user_by_tg(tg.id)
+    if not is_profile_ok(user):
+        await update.message.reply_text("❌ پروفایل کامل/تایید نشده. نمی‌تونم درخواست ثبت کنم.")
+        return ConversationHandler.END
+
+    data = context.user_data.get("tr", {})
+    fee = get_fee_irt()
+
+    req = await create_exchange_request(
+        owner=user,
+        role=data["role"],
+        currency=data["currency"],
+        amount=data["amount"],
+        unit_price_irt=data["unit_price_irt"],
+        deal_method=data["deal_method"],
+        description=data.get("description", ""),
+        fee_irt=fee,
+    )
+
+    context.user_data.pop("tr", None)
+
+    await update.message.reply_text(
+        f"✅ درخواستت ثبت شد و رفت برای تایید ادمین.\n"
+        f"🆔 شماره درخواست: {req.id}",
+        reply_markup=build_main_menu_keyboard()
+    )
+    return ConversationHandler.END
+
+
+async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.pop("tr", None)
+    await update.message.reply_text("❌ ثبت درخواست لغو شد.", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
+
+def get_trade_request_conversation():
+    return ConversationHandler(
+        entry_points=[
+            CommandHandler("new_request", new_request_entry),
+            MessageHandler(filters.Regex("^➕ثبت درخواست جدید$"), new_request_entry),
+        ],
+        states={
+            TR_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_role)],
+            TR_CURRENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_currency)],
+            TR_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_amount)],
+            TR_UNIT_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_unit_price)],
+            TR_METHOD: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_method)],
+            TR_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_desc)],
+            TR_CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_confirm)],
+
+            TR_EDIT_MENU: [CallbackQueryHandler(tr_edit_menu_callback,
+                                                pattern=r"^req_edit:(role|currency|amount|unit_price_irt|deal_method|description|back)$")],
+            TR_EDIT_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_edit_value)],
+        },
+        fallbacks=[CommandHandler("cancel", tr_cancel)],
+        per_user=True,
+        per_chat=True,
+        name="trade_request_conversation",
+        allow_reentry=True,
+    )
