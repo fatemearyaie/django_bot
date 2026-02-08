@@ -1,15 +1,26 @@
 from decimal import Decimal, InvalidOperation
 from decouple import config
 from bot.handlers import build_main_menu_keyboard
+
 from telegram import (
-    Update, ReplyKeyboardMarkup, KeyboardButton,
-    InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+    Update,
+    ReplyKeyboardMarkup, KeyboardButton,
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    ReplyKeyboardRemove,
 )
+
 from telegram.ext import (
-    ContextTypes, ConversationHandler, CommandHandler,
-    MessageHandler, CallbackQueryHandler, filters
+    ContextTypes,
+    ConversationHandler,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
 )
+
 from asgiref.sync import sync_to_async
+from datetime import timedelta
+from django.utils import timezone
 
 from Users.models import CustomUser
 from Trade.models.models import TradeRequest
@@ -22,14 +33,14 @@ TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, 
 side_key = ReplyKeyboardMarkup(
     [[KeyboardButton("خریدارم"), KeyboardButton("فروشنده ام")]],
     resize_keyboard=True,
-    one_time_keyboard=True
+    one_time_keyboard=True,
 )
 
 currency_key = ReplyKeyboardMarkup(
     [
         [KeyboardButton("EUR"), KeyboardButton("USD")],
         [KeyboardButton("GBP"), KeyboardButton("AED")],
-        [KeyboardButton("TRY"), KeyboardButton("CAD")]
+        [KeyboardButton("TRY"), KeyboardButton("CAD")],
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
@@ -51,18 +62,30 @@ confirm_key = ReplyKeyboardMarkup(
 )
 
 
-def build_edit_request_inline_keyboard():
+# ====== EDIT INLINE KEYBOARD (INSIDE PREVIEW) ======
+def build_edit_request_inline_keyboard_v2():
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("✏️ اصلاح نقش (خریدار/فروشنده)", callback_data="req_edit_side")],
-            [InlineKeyboardButton("💱 اصلاح ارز", callback_data="req_edit_currency")],
-            [InlineKeyboardButton("💰 اصلاح مقدار", callback_data="req_edit_amount")],
-            [InlineKeyboardButton("🏷 اصلاح قیمت هر واحد", callback_data="req_edit_price")],
-            [InlineKeyboardButton("💳 اصلاح روش معامله", callback_data="req_edit_method")],
-            [InlineKeyboardButton("📝 اصلاح توضیحات", callback_data="req_edit_desc")],
-            [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit_back")],
+            [InlineKeyboardButton("✏️ اصلاح نقش (خریدار/فروشنده)", callback_data="req_edit:role")],
+            [InlineKeyboardButton("💱 اصلاح ارز", callback_data="req_edit:currency")],
+            [InlineKeyboardButton("💰 اصلاح مقدار", callback_data="req_edit:amount")],
+            [InlineKeyboardButton("🏷 اصلاح قیمت هر واحد", callback_data="req_edit:unit_price_irt")],
+            [InlineKeyboardButton("💳 اصلاح روش معامله", callback_data="req_edit:deal_method")],
+            [InlineKeyboardButton("📝 اصلاح توضیحات", callback_data="req_edit:description")],
+            [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit:back")],
         ]
     )
+
+
+# ====== AFTER SUBMIT: MANAGE BUTTONS (EDIT/DELETE) ======
+def build_manage_after_submit_keyboard(req_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[
+            InlineKeyboardButton("✏️ ویرایش", callback_data=f"req_manage:edit:{req_id}"),
+            InlineKeyboardButton("🗑 حذف", callback_data=f"req_manage:del:{req_id}"),
+        ]]
+    )
+
 
 # ====== MY REQUESTS ======
 MYREQ_PAGE_SIZE = 5
@@ -76,21 +99,17 @@ def fetch_user_requests(user_id: int, page: int):
     items = list(qs[start:end])
     return items, total
 
-
 def _role_fa(role: str) -> str:
     return "خریدار" if role == TradeRequest.Role.BUYER else "فروشنده"
-
 
 def _status_fa(status: str) -> str:
     mapping = {
         TradeRequest.Status.DRAFT: "پیش‌نویس",
         TradeRequest.Status.PENDING_ADMIN: "در انتظار تایید ادمین",
         TradeRequest.Status.APPROVED: "تایید شده",
-        TradeRequest.Status.POSTED: "منتشر شده",
         TradeRequest.Status.CLOSED: "بسته شده",
     }
     return mapping.get(status, status)
-
 
 def build_myreq_pagination_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
     max_page = max((total - 1) // MYREQ_PAGE_SIZE, 0)
@@ -107,7 +126,6 @@ def build_myreq_pagination_keyboard(page: int, total: int) -> InlineKeyboardMark
 
     rows.append([InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"myreq:{page}")])
     return InlineKeyboardMarkup(rows)
-
 
 async def send_my_requests_list(message_obj, user: CustomUser, page: int):
     items, total = await fetch_user_requests(user.id, page)
@@ -127,7 +145,6 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int):
     for r in items:
         amount = getattr(r, "amount", None)
         amount_txt = f"{amount}" if amount is not None else "—"
-
         lines.append(
             "—————————————————————"
             f"\n🆔 #{r.id}"
@@ -136,26 +153,20 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int):
             f"\n📌 وضعیت: {_status_fa(r.status)}"
         )
 
-    text = "\n".join(lines)
-
     await message_obj.reply_text(
-        text,
+        "\n".join(lines),
         parse_mode="Markdown",
         reply_markup=build_myreq_pagination_keyboard(page, total),
         disable_web_page_preview=True,
     )
 
-
 async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
-
     if not user:
         await update.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
         return
-
     await send_my_requests_list(update.message, user, page=0)
-
 
 async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -173,11 +184,11 @@ async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await send_my_requests_list(q.message, user, page=page)
 
+
 # ====== DB HELPERS ======
 @sync_to_async
 def get_user_by_tg(tg_id: int):
     return CustomUser.objects.filter(telegram_id=tg_id).first()
-
 
 def is_profile_ok(user: CustomUser) -> bool:
     return bool(
@@ -189,6 +200,47 @@ def is_profile_ok(user: CustomUser) -> bool:
         and user.phone
     )
 
+@sync_to_async
+def set_confirm_window(req_id: int):
+    now = timezone.now()
+    TradeRequest.objects.filter(pk=req_id).update(
+        confirmed_at=now,
+        editable_until=now + timedelta(minutes=10),
+    )
+
+@sync_to_async
+def get_request_for_owner(req_id: int, owner_id: int):
+    return TradeRequest.objects.filter(id=req_id, owner_id=owner_id).first()
+
+def _is_request_editable(req: TradeRequest) -> bool:
+    if not req:
+        return False
+    if req.status != TradeRequest.Status.PENDING_ADMIN:
+        return False
+    eu = getattr(req, "editable_until", None)
+    if not eu:
+        return False
+    return timezone.now() <= eu
+
+@sync_to_async
+def delete_request_for_owner(req_id: int, owner_id: int):
+    qs = TradeRequest.objects.filter(id=req_id, owner_id=owner_id, status=TradeRequest.Status.PENDING_ADMIN)
+    deleted_count, _ = qs.delete()
+    return deleted_count
+
+@sync_to_async
+def update_request_for_owner(req_id: int, owner_id: int, data: dict):
+    qs = TradeRequest.objects.filter(id=req_id, owner_id=owner_id, status=TradeRequest.Status.PENDING_ADMIN)
+    return qs.update(
+        role=data.get("role"),
+        currency=data.get("currency"),
+        amount=data.get("amount"),
+        unit_price_irt=data.get("unit_price_irt"),
+        deal_method=data.get("deal_method"),
+        description=data.get("description", "") or "",
+        fee_irt=data.get("fee_irt"),
+        updated_at=timezone.now(),
+    )
 
 @sync_to_async
 def create_exchange_request(
@@ -223,7 +275,6 @@ def map_role(text: str) -> str | None:
         return TradeRequest.Role.SELLER
     return None
 
-
 def map_method(text: str) -> str | None:
     t = (text or "").strip()
     if t == "پی پال":
@@ -236,7 +287,6 @@ def map_method(text: str) -> str | None:
         return TradeRequest.DealMethod.TRANSFER
     return None
 
-
 def parse_amount(text: str) -> Decimal | None:
     t = (text or "").strip().replace(",", ".")
     try:
@@ -247,7 +297,6 @@ def parse_amount(text: str) -> Decimal | None:
     except (InvalidOperation, ValueError):
         return None
 
-
 def parse_unit_price(text: str) -> int | None:
     t = (text or "").strip().replace(",", "").replace("_", "")
     if not t.isdigit():
@@ -257,11 +306,11 @@ def parse_unit_price(text: str) -> int | None:
         return None
     return v
 
-
 def get_fee_irt() -> int:
     return int(config("TRADE_REQUEST_FEE"))
 
 
+# ====== PREVIEW ======
 async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get("tr", {})
     fee = get_fee_irt()
@@ -286,24 +335,10 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
         preview += f"\n📌 مجموع بدون کارمزد: {total}\n📌 مجموع با کارمزد: {total + Decimal(fee)}\n"
 
     preview += "\n✅ از ارسال مطمئنی؟"
-
     await message_obj.reply_text(preview, reply_markup=confirm_key)
 
 
-def build_edit_request_inline_keyboard():
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("✏️ اصلاح نقش (خریدار/فروشنده)", callback_data="req_edit:role")],
-            [InlineKeyboardButton("💱 اصلاح ارز", callback_data="req_edit:currency")],
-            [InlineKeyboardButton("💰 اصلاح مقدار", callback_data="req_edit:amount")],
-            [InlineKeyboardButton("🏷 اصلاح قیمت هر واحد", callback_data="req_edit:unit_price_irt")],
-            [InlineKeyboardButton("💳 اصلاح روش معامله", callback_data="req_edit:deal_method")],
-            [InlineKeyboardButton("📝 اصلاح توضیحات", callback_data="req_edit:description")],
-            [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit:back")],
-        ]
-    )
-
-
+# ================== EDIT MENU CALLBACK (INSIDE PREVIEW EDIT) ==================
 async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -404,11 +439,69 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_CONFIRM
 
 
+# ================== AFTER SUBMIT: EDIT/DELETE CALLBACKS (ENTRY POINT) ==================
+async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    user = await get_user_by_tg(q.from_user.id)
+    if not user:
+        await q.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
+        return ConversationHandler.END
+
+    try:
+        _, action, req_id_str = q.data.split(":", 2)
+        req_id = int(req_id_str)
+    except Exception:
+        await q.message.reply_text("❌ داده نامعتبر.")
+        return ConversationHandler.END
+
+    req = await get_request_for_owner(req_id, user.id)
+    if not req:
+        await q.message.reply_text("❌ این درخواست پیدا نشد یا مال شما نیست.", reply_markup=build_main_menu_keyboard())
+        return ConversationHandler.END
+
+    if not _is_request_editable(req):
+        await q.message.reply_text(
+            "⛔️ مهلت ۱۰ دقیقه‌ای گذشته و دیگه نمی‌تونی این درخواست رو ویرایش/حذف کنی.",
+            reply_markup=build_main_menu_keyboard(),
+        )
+        return ConversationHandler.END
+
+    if action == "del":
+        deleted = await delete_request_for_owner(req_id, user.id)
+        if deleted:
+            await q.message.reply_text(f"🗑 درخواست #{req_id} حذف شد.", reply_markup=build_main_menu_keyboard())
+        else:
+            await q.message.reply_text("❌ حذف انجام نشد.", reply_markup=build_main_menu_keyboard())
+        return ConversationHandler.END
+
+    if action == "edit":
+        context.user_data["tr"] = {
+            "role": req.role,
+            "currency": req.currency,
+            "amount": getattr(req, "amount", None),
+            "unit_price_irt": req.unit_price_irt,
+            "deal_method": req.deal_method,
+            "description": req.description or "",
+        }
+        context.user_data["editing_req_id"] = req_id
+
+        await q.message.reply_text(
+            f"✏️ ویرایش درخواست #{req_id}\nکدوم بخش رو می‌خوای اصلاح کنی؟",
+            reply_markup=build_edit_request_inline_keyboard_v2(),
+        )
+        return TR_EDIT_MENU
+
+    await q.message.reply_text("❌ عملیات نامعتبر.")
+    return ConversationHandler.END
+
+
 # ================== FLOW HANDLERS ==================
 async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
-
     user = await get_user_by_tg(tg.id)
+
     if not is_profile_ok(user):
         await update.message.reply_text(
             "❌ برای ثبت درخواست باید اول ثبت‌نامت کامل باشه و ادمین تاییدت کرده باشه.\n"
@@ -417,9 +510,10 @@ async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     context.user_data["tr"] = {}
+    context.user_data.pop("editing_req_id", None)
+
     await update.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
     return TR_ROLE
-
 
 async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role = map_role(update.message.text)
@@ -430,7 +524,6 @@ async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tr"]["role"] = role
     await update.message.reply_text("💱 ارز مورد نظرت چیه؟", reply_markup=currency_key)
     return TR_CURRENCY
-
 
 async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur = (update.message.text or "").strip().upper()
@@ -443,7 +536,6 @@ async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("💰 مقدار ارز رو وارد کن (مثلاً 100 یا 250.5):", reply_markup=ReplyKeyboardRemove())
     return TR_AMOUNT
 
-
 async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount = parse_amount(update.message.text)
     if amount is None:
@@ -453,7 +545,6 @@ async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tr"]["amount"] = amount
     await update.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):")
     return TR_UNIT_PRICE
-
 
 async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     unit_price = parse_unit_price(update.message.text)
@@ -465,7 +556,6 @@ async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔁 روش معاملت چیه؟", reply_markup=method_key)
     return TR_METHOD
 
-
 async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     method = map_method(update.message.text)
     if not method:
@@ -476,7 +566,6 @@ async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📝 توضیحاتی داری؟ (اگر نداری «-» بزن)", reply_markup=ReplyKeyboardRemove())
     return TR_DESC
 
-
 async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     desc = (update.message.text or "").strip()
     if desc == "-":
@@ -486,15 +575,13 @@ async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_preview(update.message, context)
     return TR_CONFIRM
 
-
 async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
 
     if text == "❌ اصلاح":
         await update.message.reply_text(
-
             "کدوم بخش رو می‌خوای اصلاح کنی؟",
-            reply_markup=build_edit_request_inline_keyboard()
+            reply_markup=build_edit_request_inline_keyboard_v2()
         )
         return TR_EDIT_MENU
 
@@ -510,7 +597,38 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = context.user_data.get("tr", {})
     fee = get_fee_irt()
+    data["fee_irt"] = fee
 
+    # ---- editing existing pending request ----
+    editing_req_id = context.user_data.get("editing_req_id")
+    if editing_req_id:
+        req = await get_request_for_owner(editing_req_id, user.id)
+        if not req:
+            await update.message.reply_text("❌ درخواست پیدا نشد.", reply_markup=build_main_menu_keyboard())
+            context.user_data.pop("tr", None)
+            context.user_data.pop("editing_req_id", None)
+            return ConversationHandler.END
+
+        if not _is_request_editable(req):
+            await update.message.reply_text(
+                "⛔️ مهلت ۱۰ دقیقه‌ای گذشته و دیگه نمی‌تونی این درخواست رو ویرایش/حذف کنی.",
+                reply_markup=build_main_menu_keyboard()
+            )
+            context.user_data.pop("tr", None)
+            context.user_data.pop("editing_req_id", None)
+            return ConversationHandler.END
+
+        await update_request_for_owner(editing_req_id, user.id, data)
+
+        await update.message.reply_text(
+            f"✅ درخواست #{editing_req_id} ویرایش شد و همچنان در انتظار تایید ادمین است.",
+            reply_markup=build_main_menu_keyboard()
+        )
+        context.user_data.pop("tr", None)
+        context.user_data.pop("editing_req_id", None)
+        return ConversationHandler.END
+
+    # ---- create new request ----
     req = await create_exchange_request(
         owner=user,
         role=data["role"],
@@ -522,21 +640,27 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fee_irt=fee,
     )
 
-    context.user_data.pop("tr", None)
+    await set_confirm_window(req.id)
 
     await update.message.reply_text(
-        f"✅ درخواستت ثبت شد و رفت برای تایید ادمین.\n"
-        f"🆔 شماره درخواست: {req.id}",
-        reply_markup=build_main_menu_keyboard()
+        "✅ اوکی! درخواستت ثبت شد و رفت برای تایید ادمین.\n"
+        "⚠️ حواست باشه فقط *۱۰ دقیقه* فرصت داری این آگهی رو *ویرایش یا حذف* کنی.",
+        parse_mode="Markdown",
+        reply_markup=build_manage_after_submit_keyboard(req.id),
     )
-    return ConversationHandler.END
 
+    await update.message.reply_text("منوی اصلی 👇", reply_markup=build_main_menu_keyboard())
+    context.user_data.pop("tr", None)
+    return ConversationHandler.END
 
 async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("tr", None)
+    context.user_data.pop("editing_req_id", None)
     await update.message.reply_text("❌ ثبت درخواست لغو شد.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+
+# ====== EXPORT HANDLERS ======
 def get_my_requests_handlers():
     return [
         CommandHandler("requests", my_requests_entry),
@@ -544,11 +668,14 @@ def get_my_requests_handlers():
         CallbackQueryHandler(my_requests_page_cb, pattern=r"^myreq:\d+$"),
     ]
 
+
 def get_trade_request_conversation():
     return ConversationHandler(
         entry_points=[
             CommandHandler("new_request", new_request_entry),
-            MessageHandler(filters.Regex("^➕ثبت درخواست جدید$"), new_request_entry),
+            MessageHandler(filters.Regex(r"^➕ثبت درخواست جدید$"), new_request_entry),
+
+            CallbackQueryHandler(req_manage_cb, pattern=r"^req_manage:(edit|del):\d+$"),
         ],
         states={
             TR_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_role)],
@@ -559,8 +686,12 @@ def get_trade_request_conversation():
             TR_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_desc)],
             TR_CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_confirm)],
 
-            TR_EDIT_MENU: [CallbackQueryHandler(tr_edit_menu_callback,
-                                                pattern=r"^req_edit:(role|currency|amount|unit_price_irt|deal_method|description|back)$")],
+            TR_EDIT_MENU: [
+                CallbackQueryHandler(
+                    tr_edit_menu_callback,
+                    pattern=r"^req_edit:(role|currency|amount|unit_price_irt|deal_method|description|back)$",
+                )
+            ],
             TR_EDIT_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_edit_value)],
         },
         fallbacks=[CommandHandler("cancel", tr_cancel)],

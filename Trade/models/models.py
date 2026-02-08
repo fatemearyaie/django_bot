@@ -24,7 +24,6 @@ class TradeRequest(models.Model):
         DRAFT = "draft", "پیش‌نویس"
         PENDING_ADMIN = "pending_admin", "در انتظار تایید ادمین"
         APPROVED = "approved", "تایید شده"
-        POSTED = "posted", "منتشر شده"
         CLOSED = "closed", "بسته شده"
 
     owner = models.ForeignKey(CustomUser,on_delete=models.CASCADE,related_name="trade_requests")
@@ -46,6 +45,14 @@ class TradeRequest(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    editable_until = models.DateTimeField(null=True, blank=True)
+
+    def can_edit(self) -> bool:
+        if not self.editable_until:
+            return True  # هنوز تایید نشده/ددلاین نگرفته → قابل ادیت
+        return timezone.now() <= self.editable_until
 
 
 

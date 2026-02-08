@@ -61,10 +61,6 @@ class TradeRequestAdmin(ModelAdmin):
         updated = queryset.filter(status="pending_admin").update(status="approved")
         self.message_user(request, f"{updated} درخواست تایید شد.")
 
-    @admin.action(description="📣 علامت‌گذاری به عنوان منتشر شده (approved → posted)")
-    def action_mark_posted(self, request, queryset):
-        updated = queryset.filter(status="approved").update(status="posted")
-        self.message_user(request, f"{updated} درخواست posted شد.")
 
     @admin.action(description="🔒 بستن درخواست‌ها (→ closed)")
     def action_close_requests(self, request, queryset):

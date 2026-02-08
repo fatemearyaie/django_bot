@@ -32,7 +32,6 @@ def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
 
 @receiver(pre_save, sender=TradeRequest)
 def cache_old_status(sender, instance: TradeRequest, **kwargs):
-    print("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
     if not instance.pk:
         instance._old_status = None
         return
@@ -44,7 +43,6 @@ def cache_old_status(sender, instance: TradeRequest, **kwargs):
 
 @receiver(post_save, sender=TradeRequest)
 def on_request_approved(sender, instance: TradeRequest, created: bool, **kwargs):
-    print("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
 
     old = getattr(instance, "_old_status", None)
     if old == instance.status:
