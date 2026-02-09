@@ -2,6 +2,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from django.db.models import Count
 from django.contrib import admin
 from .models import TradeRequest, TradeOffer
+from .services.request_services import publish_trade_request_to_channel
 
 
 # ---------- Inline offers inside request ----------
@@ -18,6 +19,7 @@ class TradeOfferInline(TabularInline):
 # ---------- TradeRequest Admin ----------
 @admin.register(TradeRequest)
 class TradeRequestAdmin(ModelAdmin):
+
     inlines = [TradeOfferInline]
 
     list_display = (
@@ -28,7 +30,6 @@ class TradeRequestAdmin(ModelAdmin):
         "unit_price_irt",
         "deal_method",
         "status",
-        "offers_count",
         "channel_message_id",
         "created_at",
     )
@@ -37,36 +38,21 @@ class TradeRequestAdmin(ModelAdmin):
     autocomplete_fields = ("owner",)
     ordering = ("-created_at",)
 
-    readonly_fields = ("created_at", "updated_at", "offers_count")
-    fieldsets = (
-        ("Owner", {"fields": ("owner",)}),
-        ("Request Info", {"fields": ("role", "currency", "unit_price_irt", "deal_method", "description")}),
-        ("Workflow", {"fields": ("status",)}),
-        ("Channel Message", {"fields": ("channel_chat_id", "channel_message_id")}),
-        ("Meta", {"fields": ("offers_count", "created_at", "updated_at")}),
-    )
+    readonly_fields = ("created_at", "updated_at",)
 
-    actions = ("action_approve_requests", "action_mark_posted", "action_close_requests")
+    def save_model(self, request, obj, form, change):
+        old_status = None
+        if obj.pk:
+            old_status = TradeRequest.objects.get(pk=obj.pk).status
 
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.annotate(_offers_count=Count("offers"))
+        super().save_model(request, obj, form, change)
 
-    @admin.display(description="Offers", ordering="_offers_count")
-    def offers_count(self, obj: TradeRequest) -> int:
-        return getattr(obj, "_offers_count", 0)
-
-    @admin.action(description="✅ تایید درخواست‌ها (pending_admin → approved)")
-    def action_approve_requests(self, request, queryset):
-        updated = queryset.filter(status="pending_admin").update(status="approved")
-        self.message_user(request, f"{updated} درخواست تایید شد.")
-
-
-    @admin.action(description="🔒 بستن درخواست‌ها (→ closed)")
-    def action_close_requests(self, request, queryset):
-        updated = queryset.exclude(status="closed").update(status="closed")
-        self.message_user(request, f"{updated} درخواست بسته شد.")
-
+        if (
+            old_status != TradeRequest.Status.APPROVED
+            and obj.status == TradeRequest.Status.APPROVED
+            and not obj.channel_message_id
+        ):
+            publish_trade_request_to_channel(obj.pk)
 
 # ---------- TradeOffer Admin ----------
 @admin.register(TradeOffer)

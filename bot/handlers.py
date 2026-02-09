@@ -11,6 +11,10 @@ from bot.flow.registration import (
     is_profile_complete,
 )
 from bot.flow.request import get_trade_request_conversation, get_my_requests_handlers
+from bot.flow.offer import build_offer_conversation
+
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_or_create_user(tg.id, tg.username)
@@ -34,7 +38,11 @@ def build_application(token: str):
 
     application.add_handler(build_registration_conversation())
 
+
+    application.add_handler(build_offer_conversation())
     application.add_handler(CommandHandler("start", start))
+
+
 
     application.add_handler(get_trade_request_conversation())
 

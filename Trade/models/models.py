@@ -1,4 +1,6 @@
 from django.db import models
+from django.utils import timezone
+
 from Users.models import CustomUser
 
 
@@ -49,9 +51,11 @@ class TradeRequest(models.Model):
     confirmed_at = models.DateTimeField(null=True, blank=True)
     editable_until = models.DateTimeField(null=True, blank=True)
 
+    channel_post_text = models.TextField(null=True, blank=True)
+
     def can_edit(self) -> bool:
         if not self.editable_until:
-            return True  # هنوز تایید نشده/ددلاین نگرفته → قابل ادیت
+            return True
         return timezone.now() <= self.editable_until
 
 

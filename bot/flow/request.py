@@ -61,6 +61,13 @@ confirm_key = ReplyKeyboardMarkup(
     one_time_keyboard=True,
 )
 
+no_desc_key = ReplyKeyboardMarkup(
+    [[KeyboardButton("📝 بدون توضیحات")]],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+
 
 # ====== EDIT INLINE KEYBOARD (INSIDE PREVIEW) ======
 def build_edit_request_inline_keyboard_v2():
@@ -373,7 +380,7 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "description":
-        await q.message.reply_text("📝 توضیحاتی داری؟ (اگر نداری «-» بزن)", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text("📝 توضیحاتی داری؟", reply_markup=no_desc_key,)
         return TR_EDIT_VALUE
 
     await q.message.reply_text("❌ گزینه نامعتبر.")
@@ -563,17 +570,28 @@ async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_METHOD
 
     context.user_data["tr"]["deal_method"] = method
-    await update.message.reply_text("📝 توضیحاتی داری؟ (اگر نداری «-» بزن)", reply_markup=ReplyKeyboardRemove())
+
+    await update.message.reply_text(
+        "📝 توضیحاتی داری؟ (اگر نداری «📝 بدون توضیحات» رو بزن)",
+        reply_markup=no_desc_key,
+    )
     return TR_DESC
 
 async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     desc = (update.message.text or "").strip()
+
+    if desc == "📝 بدون توضیحات":
+        desc = ""
+
     if desc == "-":
         desc = ""
+
     context.user_data["tr"]["description"] = desc
 
+    await update.message.reply_text("✅ دریافت شد.", reply_markup=ReplyKeyboardRemove())
     await send_preview(update.message, context)
     return TR_CONFIRM
+
 
 async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
@@ -599,7 +617,6 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fee = get_fee_irt()
     data["fee_irt"] = fee
 
-    # ---- editing existing pending request ----
     editing_req_id = context.user_data.get("editing_req_id")
     if editing_req_id:
         req = await get_request_for_owner(editing_req_id, user.id)
@@ -628,7 +645,6 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("editing_req_id", None)
         return ConversationHandler.END
 
-    # ---- create new request ----
     req = await create_exchange_request(
         owner=user,
         role=data["role"],
@@ -649,7 +665,11 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=build_manage_after_submit_keyboard(req.id),
     )
 
-    await update.message.reply_text("منوی اصلی 👇", reply_markup=build_main_menu_keyboard())
+    await update.message.reply_text(
+        "🏠 برگشتی به منوی اصلی.",
+        reply_markup=build_main_menu_keyboard(),
+    )
+
     context.user_data.pop("tr", None)
     return ConversationHandler.END
 

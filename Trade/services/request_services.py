@@ -1,0 +1,82 @@
+import os
+from asgiref.sync import async_to_sync
+from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
+
+from Trade.models.models import TradeRequest
+
+CHANNEL = "@testmestplat"
+BOT_USERNAME = "thisisatestforplattkar_bot"
+
+
+def build_channel_post_text(req: TradeRequest) -> str:
+    role = "خریدار" if req.role == TradeRequest.Role.BUYER else "فروشنده"
+    amount = getattr(req, 'amount', None)
+    amount_txt = f"{amount}" if amount is not None else "-"
+
+    return (
+        "📌 *درخواست جدید*\n\n"
+        f"🆔 شناسه: `{req.id}`\n"
+        f"👤 نقش: {role}\n"
+        f"💱 ارز: {req.currency}\n"
+        f"💰 مقدار: {amount_txt}\n"
+        f"💰 قیمت هر واحد (تومان): {req.unit_price_irt}\n"
+        f"💳 روش معامله: {req.deal_method}\n"
+        f"📝 توضیحات: {req.description or '—'}\n"
+        f"💸 کارمزد (تومان): {req.fee_irt}\n"
+    )
+
+
+def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 پیشنهاد بده", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
+    ])
+
+
+def publish_trade_request_to_channel(req_id: int) -> bool:
+    token = os.environ.get("API_TOKEN")
+    if not token:
+        print("API_TOKEN not set")
+        return False
+
+    req = TradeRequest.objects.select_related("owner").filter(pk=req_id).first()
+    if not req:
+        print("TradeRequest not found:", req_id)
+        return False
+
+    if req.channel_chat_id and req.channel_message_id:
+        return True
+
+    bot = Bot(token=token)
+    text = build_channel_post_text(req)
+
+    try:
+        msg = async_to_sync(bot.send_message)(
+            chat_id=CHANNEL,
+            text=text,
+            parse_mode="Markdown",
+            reply_markup=build_channel_keyboard(req.id),
+            disable_web_page_preview=True,
+        )
+
+        TradeRequest.objects.filter(pk=req.pk).update(
+            channel_chat_id=msg.chat.id,
+            channel_message_id=msg.message_id,
+            channel_post_text=text,
+        )
+
+        try:
+            tg_id = getattr(req.owner, "telegram_id", None)
+            if tg_id:
+                async_to_sync(bot.send_message)(
+                    chat_id=tg_id,
+                    text=f"✅ درخواست شما (#{req.id}) توسط ادمین تایید شد و در کانال منتشر شد."
+                )
+        except Exception as e:
+            print("TELEGRAM owner notify ERROR:", type(e), repr(e))
+
+        print("✅ Channel published:", msg.chat.id, msg.message_id)
+        return True
+
+    except Exception as e:
+        print("❌ Channel publish failed:", type(e), repr(e))
+        return False
