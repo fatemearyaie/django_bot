@@ -23,13 +23,11 @@ from datetime import timedelta
 from django.utils import timezone
 
 from Users.models import CustomUser
-from Trade.models.models import TradeRequest
+from Trade.models.models import TradeRequest, TradeOffer
 
 
-# ====== STATES ======
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
 
-# ====== KEYBOARDS ======
 side_key = ReplyKeyboardMarkup(
     [[KeyboardButton("خریدارم"), KeyboardButton("فروشنده ام")]],
     resize_keyboard=True,
@@ -68,8 +66,6 @@ no_desc_key = ReplyKeyboardMarkup(
 )
 
 
-
-# ====== EDIT INLINE KEYBOARD (INSIDE PREVIEW) ======
 def build_edit_request_inline_keyboard_v2():
     return InlineKeyboardMarkup(
         [
@@ -84,7 +80,6 @@ def build_edit_request_inline_keyboard_v2():
     )
 
 
-# ====== AFTER SUBMIT: MANAGE BUTTONS (EDIT/DELETE) ======
 def build_manage_after_submit_keyboard(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [[
@@ -94,8 +89,36 @@ def build_manage_after_submit_keyboard(req_id: int) -> InlineKeyboardMarkup:
     )
 
 
-# ====== MY REQUESTS ======
-MYREQ_PAGE_SIZE = 5
+MYREQ_PAGE_SIZE = 1
+
+
+@sync_to_async
+def get_user_by_tg(tg_id: int):
+    return CustomUser.objects.filter(telegram_id=tg_id).first()
+
+
+def _role_fa(role: str) -> str:
+    return "خریدار" if role == TradeRequest.Role.BUYER else "فروشنده"
+
+
+def _req_status_fa(status: str) -> str:
+    mapping = {
+        TradeRequest.Status.DRAFT: "پیش‌نویس",
+        TradeRequest.Status.PENDING_ADMIN: "در انتظار تایید ادمین",
+        TradeRequest.Status.APPROVED: "✅ تایید شده",
+        TradeRequest.Status.CLOSED: "⛔️ بسته شده",
+    }
+    return mapping.get(status, status)
+
+
+def _offer_status_fa(status: str) -> str:
+    mapping = {
+        TradeOffer.Status.PENDING: "در انتظار",
+        TradeOffer.Status.ACCEPTED: "✅ تایید شده",
+        TradeOffer.Status.REJECTED: "❌ رد شده",
+    }
+    return mapping.get(status, status)
+
 
 @sync_to_async
 def fetch_user_requests(user_id: int, page: int):
@@ -106,66 +129,104 @@ def fetch_user_requests(user_id: int, page: int):
     items = list(qs[start:end])
     return items, total
 
-def _role_fa(role: str) -> str:
-    return "خریدار" if role == TradeRequest.Role.BUYER else "فروشنده"
 
-def _status_fa(status: str) -> str:
-    mapping = {
-        TradeRequest.Status.DRAFT: "پیش‌نویس",
-        TradeRequest.Status.PENDING_ADMIN: "در انتظار تایید ادمین",
-        TradeRequest.Status.APPROVED: "تایید شده",
-        TradeRequest.Status.CLOSED: "بسته شده",
-    }
-    return mapping.get(status, status)
+@sync_to_async
+def fetch_offers_for_request(req_id: int):
+    return list(
+        TradeOffer.objects
+        .select_related("sender")
+        .filter(request_id=req_id)
+        .order_by("-created_at")
+    )
 
-def build_myreq_pagination_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
+
+def build_myreq_list_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
     max_page = max((total - 1) // MYREQ_PAGE_SIZE, 0)
 
-    row = []
-    if page > 0:
-        row.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"myreq:{page-1}"))
-    if page < max_page:
-        row.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"myreq:{page+1}"))
-
     rows = []
-    if row:
-        rows.append(row)
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"myreq:{page-1}"))
+    if page < max_page:
+        nav.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"myreq:{page+1}"))
+    if nav:
+        rows.append(nav)
 
-    rows.append([InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"myreq:{page}")])
+    rows.append([InlineKeyboardButton("🏠 منوی اصلی", callback_data="myreq_home")])
     return InlineKeyboardMarkup(rows)
 
-async def send_my_requests_list(message_obj, user: CustomUser, page: int):
+
+async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_requests(user.id, page)
 
     if total == 0:
-        await message_obj.reply_text("📥 هنوز هیچ درخواستی ثبت نکردی.", reply_markup=build_main_menu_keyboard())
+        if edit:
+            await message_obj.edit_text("📥 هنوز هیچ درخواستی ثبت نکردی.")
+            await message_obj.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
+        else:
+            await message_obj.reply_text("📥 هنوز هیچ درخواستی ثبت نکردی.", reply_markup=build_main_menu_keyboard())
         return
 
     max_page = max((total - 1) // MYREQ_PAGE_SIZE, 0)
-    page = max(0, min(page, max_page))
+    if page < 0:
+        page = 0
+    if page > max_page:
+        page = max_page
 
-    lines = [
-        f"📥 *درخواست‌های من* (صفحه {page+1} از {max_page+1})",
-        "",
-    ]
+    items, total = await fetch_user_requests(user.id, page)
+    r = items[0]
 
-    for r in items:
-        amount = getattr(r, "amount", None)
-        amount_txt = f"{amount}" if amount is not None else "—"
-        lines.append(
-            "—————————————————————"
-            f"\n🆔 #{r.id}"
-            f"\n👤 {_role_fa(r.role)} | 💱 {r.currency}"
-            f"\n💰 مقدار: {amount_txt} | 🏷 قیمت واحد: {r.unit_price_irt:,} تومان"
-            f"\n📌 وضعیت: {_status_fa(r.status)}"
+    offers = await fetch_offers_for_request(r.id)
+
+    text = (
+        f"📥 *درخواست‌های من* (صفحه {page+1} از {max_page+1})\n\n"
+        "🧾 *درخواست*\n"
+        f"🆔 #{r.id}\n"
+        f"👤 نقش: {_role_fa(r.role)} | 💱 ارز: {r.currency}\n"
+        f"💰 مقدار: {r.amount}\n"
+        f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
+        f"💳 روش معامله: {r.deal_method}\n"
+        f"📝 توضیحات: {r.description or '—'}\n"
+        f"💸 کارمزد: {r.fee_irt:,} تومان\n"
+        f"📌 وضعیت: {_req_status_fa(r.status)}\n"
+        "\n—————————————————————\n"
+        f"📨 *پیشنهادها* ({len(offers)})"
+    )
+
+    if not offers:
+        text += "\n\nهنوز پیشنهادی نداری."
+    else:
+        shown = offers[:25]
+        for o in shown:
+            sender_name = (o.sender.name or o.sender.username or "—")
+            text += (
+                f"\n\n— پیشنهاد #{o.id}"
+                f"\n👤 {sender_name}"
+                f"\n💰 {o.unit_price_irt:,} تومان"
+                f"\n📌 وضعیت: {_offer_status_fa(o.status)}"
+                + (f"\n📝 {o.message}" if o.message else "")
+            )
+
+        if len(offers) > len(shown):
+            text += f"\n\n… {len(offers) - len(shown)} پیشنهاد دیگر نمایش داده نشد."
+
+    kb = build_myreq_list_keyboard(page, total)
+
+    if edit:
+        await message_obj.edit_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=kb,
+            disable_web_page_preview=True,
+        )
+    else:
+        await message_obj.reply_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=kb,
+            disable_web_page_preview=True,
         )
 
-    await message_obj.reply_text(
-        "\n".join(lines),
-        parse_mode="Markdown",
-        reply_markup=build_myreq_pagination_keyboard(page, total),
-        disable_web_page_preview=True,
-    )
 
 async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
@@ -173,11 +234,16 @@ async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         await update.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
         return
-    await send_my_requests_list(update.message, user, page=0)
+    await send_my_requests_list(update.message, user, page=0, edit=False)
+
 
 async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+
+    if q.data == "myreq_home":
+        await q.message.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
+        return
 
     user = await get_user_by_tg(q.from_user.id)
     if not user:
@@ -189,13 +255,8 @@ async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception:
         page = 0
 
-    await send_my_requests_list(q.message, user, page=page)
+    await send_my_requests_list(q.message, user, page=page, edit=True)
 
-
-# ====== DB HELPERS ======
-@sync_to_async
-def get_user_by_tg(tg_id: int):
-    return CustomUser.objects.filter(telegram_id=tg_id).first()
 
 def is_profile_ok(user: CustomUser) -> bool:
     return bool(
@@ -207,6 +268,7 @@ def is_profile_ok(user: CustomUser) -> bool:
         and user.phone
     )
 
+
 @sync_to_async
 def set_confirm_window(req_id: int):
     now = timezone.now()
@@ -215,19 +277,21 @@ def set_confirm_window(req_id: int):
         editable_until=now + timedelta(minutes=10),
     )
 
+
 @sync_to_async
 def get_request_for_owner(req_id: int, owner_id: int):
     return TradeRequest.objects.filter(id=req_id, owner_id=owner_id).first()
+
 
 def _is_request_editable(req: TradeRequest) -> bool:
     if not req:
         return False
     if req.status != TradeRequest.Status.PENDING_ADMIN:
         return False
-    eu = getattr(req, "editable_until", None)
-    if not eu:
+    if not req.editable_until:
         return False
-    return timezone.now() <= eu
+    return timezone.now() <= req.editable_until
+
 
 @sync_to_async
 def delete_request_for_owner(req_id: int, owner_id: int):
@@ -235,19 +299,21 @@ def delete_request_for_owner(req_id: int, owner_id: int):
     deleted_count, _ = qs.delete()
     return deleted_count
 
+
 @sync_to_async
 def update_request_for_owner(req_id: int, owner_id: int, data: dict):
     qs = TradeRequest.objects.filter(id=req_id, owner_id=owner_id, status=TradeRequest.Status.PENDING_ADMIN)
     return qs.update(
-        role=data.get("role"),
-        currency=data.get("currency"),
-        amount=data.get("amount"),
-        unit_price_irt=data.get("unit_price_irt"),
-        deal_method=data.get("deal_method"),
-        description=data.get("description", "") or "",
-        fee_irt=data.get("fee_irt"),
+        role=data["role"],
+        currency=data["currency"],
+        amount=data["amount"],
+        unit_price_irt=data["unit_price_irt"],
+        deal_method=data["deal_method"],
+        description=data["description"],
+        fee_irt=data["fee_irt"],
         updated_at=timezone.now(),
     )
+
 
 @sync_to_async
 def create_exchange_request(
@@ -268,12 +334,11 @@ def create_exchange_request(
         unit_price_irt=unit_price_irt,
         fee_irt=fee_irt,
         deal_method=deal_method,
-        description=description or "",
+        description=description,
         status=TradeRequest.Status.PENDING_ADMIN,
     )
 
 
-# ====== NORMALIZERS ======
 def map_role(text: str) -> str | None:
     t = (text or "").strip()
     if t == "خریدارم":
@@ -281,6 +346,7 @@ def map_role(text: str) -> str | None:
     if t == "فروشنده ام":
         return TradeRequest.Role.SELLER
     return None
+
 
 def map_method(text: str) -> str | None:
     t = (text or "").strip()
@@ -294,6 +360,7 @@ def map_method(text: str) -> str | None:
         return TradeRequest.DealMethod.TRANSFER
     return None
 
+
 def parse_amount(text: str) -> Decimal | None:
     t = (text or "").strip().replace(",", ".")
     try:
@@ -304,6 +371,7 @@ def parse_amount(text: str) -> Decimal | None:
     except (InvalidOperation, ValueError):
         return None
 
+
 def parse_unit_price(text: str) -> int | None:
     t = (text or "").strip().replace(",", "").replace("_", "")
     if not t.isdigit():
@@ -313,39 +381,33 @@ def parse_unit_price(text: str) -> int | None:
         return None
     return v
 
+
 def get_fee_irt() -> int:
     return int(config("TRADE_REQUEST_FEE"))
 
 
-# ====== PREVIEW ======
 async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get("tr", {})
     fee = get_fee_irt()
 
-    amount = data.get("amount")
-    unit_price = data.get("unit_price_irt")
-    total = None
-    if amount is not None and unit_price is not None:
-        total = amount * Decimal(unit_price)
+    total = data["amount"] * Decimal(data["unit_price_irt"])
 
     preview = (
         "🧾 پیش‌نمایش درخواست شما:\n\n"
-        f"👤 نقش: {'خریدار' if data.get('role') == TradeRequest.Role.BUYER else 'فروشنده'}\n"
-        f"💱 ارز: {data.get('currency')}\n"
-        f"💰 مقدار: {amount}\n"
-        f"🏷 قیمت هر واحد (تومان): {unit_price}\n"
-        f"🔁 روش معامله: {data.get('deal_method')}\n"
-        f"📝 توضیحات: {data.get('description') or '—'}\n"
+        f"👤 نقش: {'خریدار' if data['role'] == TradeRequest.Role.BUYER else 'فروشنده'}\n"
+        f"💱 ارز: {data['currency']}\n"
+        f"💰 مقدار: {data['amount']}\n"
+        f"🏷 قیمت هر واحد (تومان): {data['unit_price_irt']}\n"
+        f"🔁 روش معامله: {data['deal_method']}\n"
+        f"📝 توضیحات: {data['description'] or '—'}\n"
         f"💸 کارمزد ثابت (تومان): {fee}\n"
+        f"\n📌 مجموع بدون کارمزد: {total}\n"
+        f"📌 مجموع با کارمزد: {total + Decimal(fee)}\n"
+        "\n✅ از ارسال مطمئنی؟"
     )
-    if total is not None:
-        preview += f"\n📌 مجموع بدون کارمزد: {total}\n📌 مجموع با کارمزد: {total + Decimal(fee)}\n"
-
-    preview += "\n✅ از ارسال مطمئنی؟"
     await message_obj.reply_text(preview, reply_markup=confirm_key)
 
 
-# ================== EDIT MENU CALLBACK (INSIDE PREVIEW EDIT) ==================
 async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -380,7 +442,7 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "description":
-        await q.message.reply_text("📝 توضیحاتی داری؟", reply_markup=no_desc_key,)
+        await q.message.reply_text("📝 توضیحاتی داری؟", reply_markup=no_desc_key)
         return TR_EDIT_VALUE
 
     await q.message.reply_text("❌ گزینه نامعتبر.")
@@ -434,6 +496,8 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data["deal_method"] = method
 
     elif field == "description":
+        if txt == "📝 بدون توضیحات":
+            txt = ""
         if txt == "-":
             txt = ""
         data["description"] = txt
@@ -446,7 +510,6 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_CONFIRM
 
 
-# ================== AFTER SUBMIT: EDIT/DELETE CALLBACKS (ENTRY POINT) ==================
 async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -487,7 +550,7 @@ async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["tr"] = {
             "role": req.role,
             "currency": req.currency,
-            "amount": getattr(req, "amount", None),
+            "amount": req.amount,
             "unit_price_irt": req.unit_price_irt,
             "deal_method": req.deal_method,
             "description": req.description or "",
@@ -504,7 +567,6 @@ async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# ================== FLOW HANDLERS ==================
 async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
@@ -522,6 +584,7 @@ async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
     return TR_ROLE
 
+
 async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role = map_role(update.message.text)
     if not role:
@@ -531,6 +594,7 @@ async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tr"]["role"] = role
     await update.message.reply_text("💱 ارز مورد نظرت چیه؟", reply_markup=currency_key)
     return TR_CURRENCY
+
 
 async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur = (update.message.text or "").strip().upper()
@@ -543,6 +607,7 @@ async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("💰 مقدار ارز رو وارد کن (مثلاً 100 یا 250.5):", reply_markup=ReplyKeyboardRemove())
     return TR_AMOUNT
 
+
 async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount = parse_amount(update.message.text)
     if amount is None:
@@ -552,6 +617,7 @@ async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tr"]["amount"] = amount
     await update.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):")
     return TR_UNIT_PRICE
+
 
 async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     unit_price = parse_unit_price(update.message.text)
@@ -563,6 +629,7 @@ async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔁 روش معاملت چیه؟", reply_markup=method_key)
     return TR_METHOD
 
+
 async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     method = map_method(update.message.text)
     if not method:
@@ -570,24 +637,21 @@ async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_METHOD
 
     context.user_data["tr"]["deal_method"] = method
-
     await update.message.reply_text(
         "📝 توضیحاتی داری؟ (اگر نداری «📝 بدون توضیحات» رو بزن)",
         reply_markup=no_desc_key,
     )
     return TR_DESC
 
+
 async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     desc = (update.message.text or "").strip()
-
     if desc == "📝 بدون توضیحات":
         desc = ""
-
     if desc == "-":
         desc = ""
 
     context.user_data["tr"]["description"] = desc
-
     await update.message.reply_text("✅ دریافت شد.", reply_markup=ReplyKeyboardRemove())
     await send_preview(update.message, context)
     return TR_CONFIRM
@@ -673,6 +737,7 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("tr", None)
     return ConversationHandler.END
 
+
 async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("tr", None)
     context.user_data.pop("editing_req_id", None)
@@ -680,12 +745,13 @@ async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# ====== EXPORT HANDLERS ======
 def get_my_requests_handlers():
     return [
         CommandHandler("requests", my_requests_entry),
         MessageHandler(filters.Regex(r"^📥درخواست‌های من$"), my_requests_entry),
+
         CallbackQueryHandler(my_requests_page_cb, pattern=r"^myreq:\d+$"),
+        CallbackQueryHandler(my_requests_page_cb, pattern=r"^myreq_home$"),
     ]
 
 

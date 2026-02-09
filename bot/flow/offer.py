@@ -332,7 +332,8 @@ async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await msg.reply_text("کنسل شد.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-MYOFFERS_PAGE_SIZE = 5
+
+MYOFFERS_PAGE_SIZE = 1
 
 
 def _status_fa(s: str) -> str:
@@ -344,6 +345,20 @@ def _status_fa(s: str) -> str:
     return mapping.get(s, s)
 
 
+def _req_status_fa(s: str) -> str:
+    mapping = {
+        TradeRequest.Status.DRAFT: "پیش‌نویس",
+        TradeRequest.Status.PENDING_ADMIN: "در انتظار تایید ادمین",
+        TradeRequest.Status.APPROVED: "تایید شده",
+        TradeRequest.Status.CLOSED: "بسته شده",
+    }
+    return mapping.get(s, s)
+
+
+def _role_fa(role: str) -> str:
+    return "خریدار" if role == TradeRequest.Role.BUYER else "فروشنده"
+
+
 @sync_to_async
 def get_user_by_tg(tg_id: int):
     return CustomUser.objects.filter(telegram_id=tg_id).first()
@@ -353,7 +368,7 @@ def get_user_by_tg(tg_id: int):
 def fetch_user_offers(user_id: int, page: int):
     qs = (
         TradeOffer.objects
-        .select_related("request")
+        .select_related("request", "request__owner")
         .filter(sender_id=user_id)
         .order_by("-created_at")
     )
@@ -365,7 +380,6 @@ def fetch_user_offers(user_id: int, page: int):
 
 def build_myoffers_pagination_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
     max_page = max((total - 1) // MYOFFERS_PAGE_SIZE, 0)
-
     rows = []
 
     nav = []
@@ -376,48 +390,76 @@ def build_myoffers_pagination_keyboard(page: int, total: int) -> InlineKeyboardM
     if nav:
         rows.append(nav)
 
-    rows.append([InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"offers:{page}")])
-
+    rows.append([InlineKeyboardButton("🏠 منوی اصلی", callback_data="offers:home")])
     return InlineKeyboardMarkup(rows)
 
 
-async def send_my_offers_list(message_obj, user: CustomUser, page: int):
+async def send_my_offers_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_offers(user.id, page)
 
     if total == 0:
-        await message_obj.reply_text("📨 هنوز هیچ پیشنهادی ثبت نکردی.", reply_markup=build_main_menu_keyboard())
+        if edit:
+            await message_obj.edit_text("📨 هنوز هیچ پیشنهادی ثبت نکردی.")
+            await message_obj.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
+        else:
+            await message_obj.reply_text("📨 هنوز هیچ پیشنهادی ثبت نکردی.", reply_markup=build_main_menu_keyboard())
         return
 
     max_page = max((total - 1) // MYOFFERS_PAGE_SIZE, 0)
     page = max(0, min(page, max_page))
+    items, total = await fetch_user_offers(user.id, page)
 
-    lines = [
-        f"📨 *پیشنهادهای من* (صفحه {page+1} از {max_page+1})",
-        "",
-    ]
+    o = items[0]
+    req = getattr(o, "request", None)
 
-    for o in items:
-        req = getattr(o, "request", None)
-        req_id = getattr(req, "id", "—")
-        currency = getattr(req, "currency", "—")
-        role = getattr(req, "role", None)
-        role_fa = "خریدار" if str(role).endswith("BUYER") else ("فروشنده" if role else "—")
+    req_id = getattr(req, "id", "—")
+    currency = getattr(req, "currency", "—")
+    role = getattr(req, "role", None)
+    role_fa = _role_fa(role) if role else "—"
+    req_rate = getattr(req, "unit_price_irt", None)
+    req_status = _req_status_fa(getattr(req, "status", "—")) if req else "—"
 
-        lines.append(
-            "—————————————————————"
-            f"\n🧾 پیشنهاد #{o.id}"
-            f"\n📌 برای درخواست #{req_id} ({role_fa} {currency})"
-            f"\n💰 نرخ پیشنهادی: {o.unit_price_irt:,} تومان"
-            f"\n📌 وضعیت: {_status_fa(o.status)}"
-            f"\n🕒 {o.created_at.strftime('%Y/%m/%d %H:%M')}"
-        )
+    offer_status = _status_fa(getattr(o, "status", "—"))
 
-    await message_obj.reply_text(
-        "\n".join(lines),
-        parse_mode="Markdown",
-        reply_markup=build_myoffers_pagination_keyboard(page, total),
-        disable_web_page_preview=True,
+    header = (
+        f"📨 *پیشنهادهای من* (صفحه {page+1} از {max_page+1})\n\n"
+        f"🧾 *درخواست مربوطه*\n"
+        f"🆔 درخواست #{req_id}\n"
+        f"👤 نقش: {role_fa} | 💱 ارز: {currency}\n"
+        f"🏷 نرخ درخواست: {f'{req_rate:,}' if isinstance(req_rate, int) else (req_rate if req_rate is not None else '—')} تومان/واحد\n"
+        f"📌 وضعیت درخواست: {req_status}\n"
+        "\n—————————————————————\n"
     )
+
+    offer_block = (
+        f"📌 *پیشنهاد شما*\n"
+        f"🧾 پیشنهاد #{o.id}\n"
+        f"💰 نرخ پیشنهادی: {o.unit_price_irt:,} تومان/واحد\n"
+        f"📌 وضعیت پیشنهاد: {offer_status}\n"
+        f"🕒 {o.created_at.strftime('%Y/%m/%d %H:%M')}\n"
+    )
+
+    note = (getattr(o, "message", "") or "").strip()
+    if note:
+        offer_block += f"\n📝 توضیحات: {note}"
+
+    text = header + offer_block
+    kb = build_myoffers_pagination_keyboard(page, total)
+
+    if edit:
+        await message_obj.edit_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=kb,
+            disable_web_page_preview=True,
+        )
+    else:
+        await message_obj.reply_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=kb,
+            disable_web_page_preview=True,
+        )
 
 
 async def my_offers_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -426,7 +468,7 @@ async def my_offers_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         await update.effective_message.reply_text("❌ اول باید ثبت‌نام کنی.", reply_markup=build_main_menu_keyboard())
         return
-    await send_my_offers_list(update.effective_message, user, page=0)
+    await send_my_offers_list(update.effective_message, user, page=0, edit=False)
 
 
 async def my_offers_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -447,7 +489,7 @@ async def my_offers_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         page = 0
 
-    await send_my_offers_list(q.message, user, page=page)
+    await send_my_offers_list(q.message, user, page=page, edit=True)
 
 
 def get_my_offers_handlers():
