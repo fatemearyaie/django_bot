@@ -2,16 +2,42 @@ import os
 from asgiref.sync import async_to_sync
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.error import TelegramError
-
 from Trade.models.models import TradeRequest
 
 BOT_USERNAME = "thisisatestforplattkar_bot"
+
+def build_offer_manage_keyboard(offer_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ تایید", callback_data=f"offer_accept:{offer_id}"),
+            InlineKeyboardButton("❌ رد", callback_data=f"offer_reject:{offer_id}"),
+        ],
+        [
+            InlineKeyboardButton("👤 اطلاعات کاربر", callback_data=f"offer_user:{offer_id}")
+        ]
+    ])
+
+def build_offer_after_accept_keyboard(offer_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👤 اطلاعات کاربر", callback_data=f"offer_user:{offer_id}")]
+    ])
 
 
 def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💬 پیشنهاد بده", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
     ])
+
+def build_offer_message(offer):
+    user = offer.sender
+    joined = user.date_joined.strftime("%Y/%m/%d")
+
+    return (
+        f"📩 *پیشنهاد جدید*  |  🆔 پیشنهاد: #{offer.id}\n\n"
+        f"💰 نرخ پیشنهادی: {offer.unit_price_irt:,} تومان\n"
+        f"📝 توضیحات: {offer.message or '—'}\n\n"
+        f"👤 {user.name or user.username} | عضو از {joined}"
+    )
 
 
 def add_offer_name_to_channel(req_id: int, offer_name: str) -> bool:

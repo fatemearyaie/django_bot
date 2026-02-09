@@ -1,7 +1,8 @@
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 
+from bot.flow.offer_manager import offer_accept_cb, offer_user_info_cb, offer_reject_cb
 from bot.flow.registration import (
     post_init,
     build_registration_conversation,
@@ -11,8 +12,7 @@ from bot.flow.registration import (
     is_profile_complete,
 )
 from bot.flow.request import get_trade_request_conversation, get_my_requests_handlers
-from bot.flow.offer import build_offer_conversation
-
+from bot.flow.offer import build_offer_conversation, get_my_offers_handlers
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,11 +42,16 @@ def build_application(token: str):
     application.add_handler(build_offer_conversation())
     application.add_handler(CommandHandler("start", start))
 
-
-
     application.add_handler(get_trade_request_conversation())
 
     for h in get_my_requests_handlers():
+        application.add_handler(h)
+
+    application.add_handler(CallbackQueryHandler(offer_accept_cb, pattern=r"^offer_accept:\d+$"))
+    application.add_handler(CallbackQueryHandler(offer_reject_cb, pattern=r"^offer_reject:\d+$"))
+    application.add_handler(CallbackQueryHandler(offer_user_info_cb, pattern=r"^offer_user:\d+$"))
+
+    for h in get_my_offers_handlers():
         application.add_handler(h)
 
     return application

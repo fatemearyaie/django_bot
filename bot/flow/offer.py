@@ -8,20 +8,32 @@ from asgiref.sync import sync_to_async
 from django.db import IntegrityError
 from django.db.models import Q
 
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton
+from telegram import (
+    Update,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from telegram.ext import (
     ConversationHandler,
     ContextTypes,
     MessageHandler,
     CommandHandler,
     filters,
+    CallbackQueryHandler,
 )
-from django.db import transaction
-from Trade.services.offers_service import add_offer_name_to_channel
 
-from bot.flow.registration import get_or_create_user, is_profile_complete
-
+from Users.models.models import CustomUser
 from Trade.models.models import TradeRequest, TradeOffer
+from Trade.services.offers_service import (
+    add_offer_name_to_channel,
+    build_offer_manage_keyboard,
+    build_offer_message,
+)
+from bot.flow.registration import get_or_create_user, is_profile_complete
+from bot.handlers import build_main_menu_keyboard
 
 REQUIRED_CHANNEL = "@testmestplat"
 START_OFFER_RE = re.compile(r"^offer_(\d+)$")
@@ -69,13 +81,12 @@ def _get_trade_request_for_offer(request_id: int) -> TradeRequest:
 
 
 @sync_to_async
-def _get_sender_from_tg_id(tg_id: int):
-    from Users.models import CustomUser
+def _get_sender_from_tg_id(tg_id: int) -> CustomUser:
     return CustomUser.objects.get(telegram_id=tg_id)
 
 
 @sync_to_async
-def _create_offer(req: TradeRequest, sender, unit_price_irt: int, message: str) -> TradeOffer:
+def _create_offer(req: TradeRequest, sender: CustomUser, unit_price_irt: int, message: str) -> TradeOffer:
     return TradeOffer.objects.create(
         request=req,
         sender=sender,
@@ -101,7 +112,6 @@ def _offer_preview(d: OfferDraft) -> str:
 
 
 async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     msg = update.effective_message
     tg = update.effective_user
     if not msg or not tg:
@@ -284,9 +294,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         offer = await _create_offer(req=req, sender=sender, unit_price_irt=int(d.proposed_rate), message=d.note or "")
 
         offer_name = sender.name or sender.username or ""
-
         await sync_to_async(add_offer_name_to_channel)(req.id, offer_name)
-
 
     except IntegrityError:
         context.user_data.pop("offer_draft", None)
@@ -300,14 +308,9 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         if req.owner and getattr(req.owner, "telegram_id", None):
             await context.bot.send_message(
                 chat_id=req.owner.telegram_id,
-                text=(
-                    "📩 یک پیشنهاد جدید دریافت کردی!\n\n"
-                    f"📌 {_req_title(req)}\n"
-                    f"👤 پیشنهاددهنده: {sender.name or sender.username or '—'}\n"
-                    f"✅ نرخ پیشنهادی (تومان/واحد): {d.proposed_rate}\n"
-                    f"📝 توضیحات: {d.note if d.note else '—'}\n"
-                    f"🆔 شناسه پیشنهاد: {offer.id}\n"
-                ),
+                text=build_offer_message(offer),
+                parse_mode="Markdown",
+                reply_markup=build_offer_manage_keyboard(offer.id),
             )
     except Exception:
         pass
@@ -328,6 +331,131 @@ async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if msg:
         await msg.reply_text("کنسل شد.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
+
+MYOFFERS_PAGE_SIZE = 5
+
+
+def _status_fa(s: str) -> str:
+    mapping = {
+        getattr(TradeOffer.Status, "PENDING", "PENDING"): "در انتظار",
+        getattr(TradeOffer.Status, "ACCEPTED", "ACCEPTED"): "✅ تایید شده",
+        getattr(TradeOffer.Status, "REJECTED", "REJECTED"): "❌ رد شده",
+    }
+    return mapping.get(s, s)
+
+
+@sync_to_async
+def get_user_by_tg(tg_id: int):
+    return CustomUser.objects.filter(telegram_id=tg_id).first()
+
+
+@sync_to_async
+def fetch_user_offers(user_id: int, page: int):
+    qs = (
+        TradeOffer.objects
+        .select_related("request")
+        .filter(sender_id=user_id)
+        .order_by("-created_at")
+    )
+    total = qs.count()
+    start = page * MYOFFERS_PAGE_SIZE
+    end = start + MYOFFERS_PAGE_SIZE
+    return list(qs[start:end]), total
+
+
+def build_myoffers_pagination_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
+    max_page = max((total - 1) // MYOFFERS_PAGE_SIZE, 0)
+
+    rows = []
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"offers:{page-1}"))
+    if page < max_page:
+        nav.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"offers:{page+1}"))
+    if nav:
+        rows.append(nav)
+
+    rows.append([InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"offers:{page}")])
+
+    return InlineKeyboardMarkup(rows)
+
+
+async def send_my_offers_list(message_obj, user: CustomUser, page: int):
+    items, total = await fetch_user_offers(user.id, page)
+
+    if total == 0:
+        await message_obj.reply_text("📨 هنوز هیچ پیشنهادی ثبت نکردی.", reply_markup=build_main_menu_keyboard())
+        return
+
+    max_page = max((total - 1) // MYOFFERS_PAGE_SIZE, 0)
+    page = max(0, min(page, max_page))
+
+    lines = [
+        f"📨 *پیشنهادهای من* (صفحه {page+1} از {max_page+1})",
+        "",
+    ]
+
+    for o in items:
+        req = getattr(o, "request", None)
+        req_id = getattr(req, "id", "—")
+        currency = getattr(req, "currency", "—")
+        role = getattr(req, "role", None)
+        role_fa = "خریدار" if str(role).endswith("BUYER") else ("فروشنده" if role else "—")
+
+        lines.append(
+            "—————————————————————"
+            f"\n🧾 پیشنهاد #{o.id}"
+            f"\n📌 برای درخواست #{req_id} ({role_fa} {currency})"
+            f"\n💰 نرخ پیشنهادی: {o.unit_price_irt:,} تومان"
+            f"\n📌 وضعیت: {_status_fa(o.status)}"
+            f"\n🕒 {o.created_at.strftime('%Y/%m/%d %H:%M')}"
+        )
+
+    await message_obj.reply_text(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=build_myoffers_pagination_keyboard(page, total),
+        disable_web_page_preview=True,
+    )
+
+
+async def my_offers_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg = update.effective_user
+    user = await get_user_by_tg(tg.id)
+    if not user:
+        await update.effective_message.reply_text("❌ اول باید ثبت‌نام کنی.", reply_markup=build_main_menu_keyboard())
+        return
+    await send_my_offers_list(update.effective_message, user, page=0)
+
+
+async def my_offers_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    if q.data == "offers:home":
+        await q.message.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
+        return
+
+    user = await get_user_by_tg(q.from_user.id)
+    if not user:
+        await q.message.reply_text("❌ اول باید ثبت‌نام کنی.", reply_markup=build_main_menu_keyboard())
+        return
+
+    try:
+        page = int(q.data.split(":", 1)[1])
+    except Exception:
+        page = 0
+
+    await send_my_offers_list(q.message, user, page=page)
+
+
+def get_my_offers_handlers():
+    return [
+        CommandHandler("offers", my_offers_entry),
+        MessageHandler(filters.Regex(r"^📬پیشنهادهای من$"), my_offers_entry),
+        CallbackQueryHandler(my_offers_page_cb, pattern=r"^offers:(\d+|home)$"),
+    ]
 
 
 def build_offer_conversation() -> ConversationHandler:
