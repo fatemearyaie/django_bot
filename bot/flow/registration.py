@@ -39,7 +39,6 @@ def build_main_menu_keyboard():
     return ReplyKeyboardMarkup(
         [
             [KeyboardButton("➕ثبت درخواست جدید")],
-            [KeyboardButton("🔍جست و جو")],
             [KeyboardButton("📥درخواست‌های من"), KeyboardButton("📬پیشنهادهای من")],
             [KeyboardButton("🔗لینک های مفید و نرخ ارز")],
             [KeyboardButton("👤پروفایل"), KeyboardButton("⁉️درباره ما")],
@@ -455,7 +454,7 @@ async def post_init(app):
         BotCommand("new_request", "درخواست جدید"),
         BotCommand("requests", "درخواست های من"),
         BotCommand("offers", "پیشنهادهای من"),
-        BotCommand("search", "جست و جو"),
+
         BotCommand("profile", "پروفایل"),
     ]
     await app.bot.set_my_commands(commands)
