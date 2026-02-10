@@ -71,20 +71,3 @@ class TradeOfferAdmin(ModelAdmin):
     ordering = ("-created_at",)
 
     readonly_fields = ("created_at",)
-
-    actions = ("action_accept_offers", "action_reject_offers", "action_cancel_offers")
-
-    @admin.action(description="✅ تایید پیشنهادها (→ accepted)")
-    def action_accept_offers(self, request, queryset):
-        updated = queryset.exclude(status="accepted").update(status="accepted")
-        self.message_user(request, f"{updated} پیشنهاد accepted شد.")
-
-    @admin.action(description="❌ رد پیشنهادها (→ rejected)")
-    def action_reject_offers(self, request, queryset):
-        updated = queryset.exclude(status="rejected").update(status="rejected")
-        self.message_user(request, f"{updated} پیشنهاد rejected شد.")
-
-    @admin.action(description="🚫 لغو پیشنهادها (→ cancelled)")
-    def action_cancel_offers(self, request, queryset):
-        updated = queryset.exclude(status="cancelled").update(status="cancelled")
-        self.message_user(request, f"{updated} پیشنهاد cancelled شد.")

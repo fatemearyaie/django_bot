@@ -81,9 +81,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'fa'
+TIME_ZONE = 'Asia/Tehran'
 
-TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
@@ -124,12 +124,12 @@ UNFOLD = {
         "show_all_applications": True,
         "navigation": [
             {
-                "title": _("Navigation"),
+                "title": _("منوی ناوبری"),
                 "separator": True,
                 "collapsible": False,
                 "items": [
                     {
-                        "title": _("Dashboard"),
+                        "title": _("داشبورد"),
                         "icon": "dashboard",
                         "link": reverse_lazy("admin:index"),
                         "permission": lambda request: request.user.is_staff,
@@ -137,34 +137,34 @@ UNFOLD = {
                 ],
             },
             {
-                "title": _("Users"),
+                "title": _("کاربران"),
                 "separator": False,
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("CustomUsers"),
+                        "title": _("کاربران"),
                         "icon": "table_view",
                         "link": reverse_lazy("admin:Users_customuser_changelist"),
                     },
                     {
-                        "title": _("Country"),
+                        "title": _("کشور"),
                         "icon": "table_view",
                         "link": reverse_lazy("admin:Users_country_changelist"),
                     },
                 ],
             },
             {
-                "title": _("Trade"),
+                "title": _("معاملات"),
                 "separator": False,
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("TradeRequest"),
+                        "title": _("درخواست ها"),
                         "icon": "table_view",
                         "link": reverse_lazy("admin:Trade_traderequest_changelist"),
                     },
                     {
-                        "title": _("TradeOffer"),
+                        "title": _("پیشنهادها"),
                         "icon": "table_view",
                         "link": reverse_lazy("admin:Trade_tradeoffer_changelist"),
                     },
