@@ -5,8 +5,10 @@ from pathlib import Path
 from decouple import config
 from celery.schedules import crontab
 from django.templatetags.static import static
-
+from django.utils.translation import gettext_lazy as _
 from pathlib import Path
+
+from django.urls import reverse_lazy
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -99,3 +101,76 @@ AUTH_USER_MODEL = 'Users.CustomUser'
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+
+UNFOLD = {
+    "DASHBOARD_CALLBACK": "TestBot.admin.dashboard.dashboard_context",
+    "SCRIPTS": [lambda request: static("admin/js/chart.umd.min.js")],
+
+    "SITE_TITLE": "Bot",
+    "SITE_HEADER": "Bot",
+    "SITE_SUBHEADER": "Operations Console",
+    "SITE_URL": "/",
+
+    "THEME": None,
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+
+
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            {
+                "title": _("Navigation"),
+                "separator": True,
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Dashboard"),
+                        "icon": "dashboard",
+                        "link": reverse_lazy("admin:index"),
+                        "permission": lambda request: request.user.is_staff,
+                    },
+                ],
+            },
+            {
+                "title": _("Users"),
+                "separator": False,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("CustomUsers"),
+                        "icon": "table_view",
+                        "link": reverse_lazy("admin:Users_customuser_changelist"),
+                    },
+                    {
+                        "title": _("Country"),
+                        "icon": "table_view",
+                        "link": reverse_lazy("admin:Users_country_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Trade"),
+                "separator": False,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("TradeRequest"),
+                        "icon": "table_view",
+                        "link": reverse_lazy("admin:Trade_traderequest_changelist"),
+                    },
+                    {
+                        "title": _("TradeOffer"),
+                        "icon": "table_view",
+                        "link": reverse_lazy("admin:Trade_tradeoffer_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
+
+}
