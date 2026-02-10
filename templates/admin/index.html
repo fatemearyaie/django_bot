@@ -1,146 +1,202 @@
-{% extends "unfold/layouts/base.html" %}
+{% extends "admin/base.html" %}
 {% load i18n %}
 
 {% block content %}
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch" lang="fa" dir="rtl">
+<div class="container mx-auto" lang="fa" dir="rtl">
 
   <!-- USERS: KPI + Chart -->
-  <div class="lg:col-span-3 rounded-2xl shadow-sm
-              bg-[var(--color-bg-card)]
-              border border-[var(--color-border)]
-              text-[var(--color-text-primary)]">
-    <div class="p-5 flex flex-col lg:flex-row gap-5">
+<section class="mb-14">
+    <div class="mb-3 flex items-end justify-between">
+      <h2 class="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+        {% trans "کاربران" %}
+      </h2>
+<p class="text-sm text-gray-700 dark:text-gray-300 mb-1">
+        {% trans "نمودار: روزانه / ماهانه / سالانه" %}
+      </p>
+    </div>
 
-      <!-- left KPIs -->
-      <div class="lg:w-1/3">
-        <div class="text-sm font-medium text-[var(--color-text-muted)]">
-          {% trans "کاربران" %}
-        </div>
+    <div class="grid grid-cols-1 md:grid-cols-6 gap-6">
 
-        <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
-          <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-            <div class="text-xs text-[var(--color-text-muted)]">{% trans "کل" %}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ kpis.users.total }}</div>
+      <!-- LEFT: 2×2 KPI grid -->
+      <div class="md:col-span-2">
+        <div class="grid grid-cols-2 gap-6">
+
+          <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm">
+            <div class="p-5 h-[100px] flex flex-col justify-center">
+              <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "کل" %}</p>
+              <div class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                {{ kpis.users.total }}
+              </div>
+            </div>
           </div>
 
-          <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-            <div class="text-xs text-[var(--color-text-muted)]">{% trans "امروز" %}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ kpis.users.today }}</div>
+          <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm">
+            <div class="p-5 h-[100px] flex flex-col justify-center">
+              <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "امروز" %}</p>
+              <div class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                {{ kpis.users.today }}
+              </div>
+            </div>
           </div>
 
-          <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-            <div class="text-xs text-[var(--color-text-muted)]">{% trans "ماهانه" %}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ kpis.users.month }}</div>
+          <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm">
+            <div class="p-5 h-[100px] flex flex-col justify-center">
+              <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "ماهانه" %}</p>
+              <div class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                {{ kpis.users.month }}
+              </div>
+            </div>
           </div>
 
-          <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-            <div class="text-xs text-[var(--color-text-muted)]">{% trans "سالانه" %}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ kpis.users.year }}</div>
+          <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm">
+            <div class="p-5 h-[100px] flex flex-col justify-center">
+              <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "سالانه" %}</p>
+              <div class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                {{ kpis.users.year }}
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="mt-4 text-xs text-[var(--color-text-muted)]">
-          {% trans "نمودار: روزانه / ماهانه / سالانه" %}
         </div>
       </div>
 
-      <!-- right chart -->
-      <div class="lg:w-2/3">
-        <div class="flex items-center justify-between gap-3">
-          <div class="text-sm font-medium text-[var(--color-text-muted)]">
-            {% trans "ثبت‌نام‌ها" %}
+      <!-- RIGHT: chart -->
+      <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm md:col-span-4">
+        <div class="p-5">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {% trans "ثبت‌نام‌ها" %}
+            </h3>
+
+            <select id="usersGranularity"
+                    class="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100">
+              <option value="daily">{% trans "روزانه" %}</option>
+              <option value="monthly">{% trans "ماهانه" %}</option>
+              <option value="yearly">{% trans "سالانه" %}</option>
+            </select>
           </div>
 
-          <select id="usersGranularity"
-                  class="text-sm rounded-xl px-3 py-2
-                         bg-[var(--color-bg-card)]
-                         border border-[var(--color-border)]
-                         text-[var(--color-text-primary)]">
-            <option value="daily">{% trans "روزانه" %}</option>
-            <option value="monthly">{% trans "ماهانه" %}</option>
-            <option value="yearly">{% trans "سالانه" %}</option>
-          </select>
-        </div>
-
-        <div class="mt-4 rounded-xl bg-[var(--color-bg-muted)] p-4 h-[240px]">
-          <canvas id="usersRegistrationsChart"></canvas>
+          <div class="mt-4 h-24">
+            <canvas id="usersRegistrationsChart" class="w-full h-full"></canvas>
+          </div>
         </div>
       </div>
 
     </div>
-  </div>
+  </section>
+
 
   <!-- REQUEST + OFFER -->
-  <div class="lg:col-span-3 flex flex-col lg:flex-row gap-4 items-stretch">
+<section class="mb-14">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-    <!-- TRADE REQUESTS -->
-    <div class="w-full lg:w-1/2 rounded-2xl shadow-sm p-5
-                bg-[var(--color-bg-card)]
-                border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                flex flex-col">
-      <div class="text-sm font-medium text-[var(--color-text-muted)]">
-        {% trans "درخواست‌های معامله" %}
+      <!-- TRADE REQUESTS -->
+      <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm">
+        <div class="p-5 flex flex-col">
+          <div class="mb-3 flex items-end justify-between">
+            <h2 class="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+              {% trans "درخواست‌های معامله" %}
+            </h2>
+          </div>
+
+          <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+            <div class="p-5 h-[100px] flex flex-col justify-center">
+              <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "مبلغ کل" %}</p>
+              <div class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                {{ amounts.trade_requests_total }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-3 gap-6">
+
+            <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+              <div class="p-4 h-[92px] flex flex-col justify-center">
+                <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "کل" %}</p>
+                <div class="mt-1 text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                  {{ kpis.trade_requests.total }}
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+              <div class="p-4 h-[92px] flex flex-col justify-center">
+                <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "ماهانه" %}</p>
+                <div class="mt-1 text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                  {{ kpis.trade_requests.month }}
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+              <div class="p-4 h-[92px] flex flex-col justify-center">
+                <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "سالانه" %}</p>
+                <div class="mt-1 text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                  {{ kpis.trade_requests.year }}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
       </div>
 
-      <div class="mt-4 rounded-xl bg-[var(--color-bg-muted)] p-4">
-        <div class="text-xs text-[var(--color-text-muted)]">{% trans "مبلغ کل" %}</div>
-        <div class="mt-2 text-2xl font-semibold">
-          {{ amounts.trade_requests_total }}
+
+      <!-- OFFERS -->
+      <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm">
+        <div class="p-5 flex flex-col">
+          <div class="mb-3 flex items-end justify-between">
+            <h2 class="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+              {% trans "پیشنهادها" %}
+            </h2>
+          </div>
+
+          <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+            <div class="p-5 h-[100px] flex flex-col justify-center">
+              <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "مبلغ کل" %}</p>
+              <div class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                {{ amounts.offers_total }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-3 gap-6">
+
+            <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+              <div class="p-4 h-[92px] flex flex-col justify-center">
+                <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "کل" %}</p>
+                <div class="mt-1 text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                  {{ kpis.offers.total }}
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+              <div class="p-4 h-[92px] flex flex-col justify-center">
+                <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "ماهانه" %}</p>
+                <div class="mt-1 text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                  {{ kpis.offers.month }}
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/60 dark:bg-gray-900/40 shadow-sm">
+              <div class="p-4 h-[92px] flex flex-col justify-center">
+                <p class="text-sm text-gray-700 dark:text-gray-300">{% trans "سالانه" %}</p>
+                <div class="mt-1 text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                  {{ kpis.offers.year }}
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
 
-      <div class="mt-4 grid grid-cols-3 gap-4">
-        <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-          <div class="text-xs text-[var(--color-text-muted)]">{% trans "کل" %}</div>
-          <div class="mt-2 text-xl font-semibold">{{ kpis.trade_requests.total }}</div>
-        </div>
-        <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-          <div class="text-xs text-[var(--color-text-muted)]">{% trans "ماهانه" %}</div>
-          <div class="mt-2 text-xl font-semibold">{{ kpis.trade_requests.month }}</div>
-        </div>
-        <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-          <div class="text-xs text-[var(--color-text-muted)]">{% trans "سالانه" %}</div>
-          <div class="mt-2 text-xl font-semibold">{{ kpis.trade_requests.year }}</div>
-        </div>
-      </div>
     </div>
+  </section>
 
-    <!-- OFFERS -->
-    <div class="w-full lg:w-1/2 rounded-2xl shadow-sm p-5
-                bg-[var(--color-bg-card)]
-                border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                flex flex-col">
-      <div class="text-sm font-medium text-[var(--color-text-muted)]">
-        {% trans "پیشنهادها" %}
-      </div>
-
-      <div class="mt-4 rounded-xl bg-[var(--color-bg-muted)] p-4">
-        <div class="text-xs text-[var(--color-text-muted)]">{% trans "مبلغ کل" %}</div>
-        <div class="mt-2 text-2xl font-semibold">
-          {{ amounts.offers_total }}
-        </div>
-      </div>
-
-      <div class="mt-4 grid grid-cols-3 gap-4">
-        <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-          <div class="text-xs text-[var(--color-text-muted)]">{% trans "کل" %}</div>
-          <div class="mt-2 text-xl font-semibold">{{ kpis.offers.total }}</div>
-        </div>
-        <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-          <div class="text-xs text-[var(--color-text-muted)]">{% trans "ماهانه" %}</div>
-          <div class="mt-2 text-xl font-semibold">{{ kpis.offers.month }}</div>
-        </div>
-        <div class="rounded-xl bg-[var(--color-bg-muted)] p-4">
-          <div class="text-xs text-[var(--color-text-muted)]">{% trans "سالانه" %}</div>
-          <div class="mt-2 text-xl font-semibold">{{ kpis.offers.year }}</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
 </div>
 
 <script>
@@ -157,9 +213,6 @@
   const canvas = document.getElementById('usersRegistrationsChart');
   const ctx = canvas.getContext('2d');
 
-  const axisColor = getComputedStyle(document.documentElement)
-    .getPropertyValue('--color-text-muted')?.trim() || '#777';
-
   let currentMode = 'daily';
 
   const usersChart = new Chart(ctx, {
@@ -172,7 +225,7 @@
         tension: 0.35,
         fill: false,
         borderWidth: 3,
-        pointRadius: currentMode === 'daily' ? 3 : 4,
+        pointRadius: 1,
         pointHoverRadius: 7,
         pointBorderWidth: 0,
       }]
@@ -184,12 +237,11 @@
       plugins: { legend: { display: false } },
       scales: {
         x: {
-          ticks: { color: axisColor, maxTicksLimit: currentMode === 'daily' ? 12 : 10 },
+          ticks: { autoSkip: true, maxTicksLimit: 5 },
           grid: { display: false }
         },
         y: {
           beginAtZero: true,
-          ticks: { color: axisColor },
           grid: { color: 'rgba(0,0,0,0.08)' }
         }
       }
@@ -201,7 +253,7 @@
 
     usersChart.data.labels = usersSeries[currentMode].labels;
     usersChart.data.datasets[0].data = usersSeries[currentMode].values;
-    usersChart.data.datasets[0].pointRadius = currentMode === 'daily' ? 3 : 4;
+    usersChart.data.datasets[0].pointRadius = 3;
     usersChart.options.scales.x.ticks.maxTicksLimit = currentMode === 'daily' ? 12 : 10;
 
     usersChart.update();

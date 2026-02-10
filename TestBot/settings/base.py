@@ -109,9 +109,8 @@ UNFOLD = {
     "DASHBOARD_CALLBACK": "TestBot.admin.dashboard.dashboard_context",
     "SCRIPTS": [lambda request: static("admin/js/chart.umd.min.js")],
 
-    "SITE_TITLE": "Bot",
-    "SITE_HEADER": "Bot",
-    "SITE_SUBHEADER": "Operations Console",
+    "SITE_TITLE": "ExCoinMarket",
+    "SITE_HEADER": "ExCoinMarket",
     "SITE_URL": "/",
 
     "THEME": None,
@@ -121,7 +120,6 @@ UNFOLD = {
 
     "SIDEBAR": {
         "show_search": True,
-        "show_all_applications": True,
         "navigation": [
             {
                 "title": _("منوی ناوبری"),
