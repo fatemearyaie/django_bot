@@ -29,6 +29,17 @@ services:
           --max-requests 1000
           --max-requests-jitter 100
 
+  bot:
+    build: .
+    command: python -m bot.main
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: TestBot.settings.local
+
+
 networks:
   bot-network:
     driver: bridge
@@ -36,5 +47,7 @@ networks:
       config:
         - subnet: 172.28.0.0/16
 
+
+
 volumes:
-  redis-data:
+  django-data:
