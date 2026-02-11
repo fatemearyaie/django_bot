@@ -1,11 +1,11 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
+from telegram.error import BadRequest
+
 from Trade.models.models import TradeOffer
 from Trade.services.offers_service import build_offer_after_accept_keyboard
 
-
-# ==== helpers ===
 
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
@@ -19,12 +19,17 @@ def get_offer_for_owner(offer_id: int, owner_tg_id: int):
         .first()
     )
 
-# ===== Accept =====
+
 async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
-    offer_id = int(q.data.split(":")[1])
+    try:
+        offer_id = int(q.data.split(":")[1])
+    except Exception:
+        await q.answer("❌ دیتای نامعتبر", show_alert=True)
+        return
+
     offer = await get_offer_for_owner(offer_id, q.from_user.id)
 
     if not offer:
@@ -38,27 +43,40 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     offer.status = TradeOffer.Status.ACCEPTED
     await sync_to_async(offer.save)()
 
-    await context.bot.send_message(
-        chat_id=offer.sender.telegram_id,
-        text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد."
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=offer.sender.telegram_id,
+            text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد."
+        )
+    except Exception:
+        pass
 
-
+    base_text = q.message.text or q.message.caption or ""
     new_text = (
-        "🟩✅ *تایید شد*\n"
+        "🟩✅ تایید شد\n"
         "━━━━━━━━━━━━━━\n"
-        f"{q.message.text}"
+        f"{base_text}"
     )
 
-    await q.edit_message_text(
-        text=new_text,
-        parse_mode="Markdown",
-        reply_markup=build_offer_after_accept_keyboard(offer.id),
-        disable_web_page_preview=True,
-    )
+    try:
+        await q.edit_message_text(
+            text=new_text,
+            reply_markup=build_offer_after_accept_keyboard(offer.id),
+            disable_web_page_preview=True,
+        )
+    except BadRequest:
+        try:
+            await q.message.reply_text(
+                text=new_text,
+                reply_markup=build_offer_after_accept_keyboard(offer.id),
+                disable_web_page_preview=True,
+            )
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
-# ===== Reject =====
 async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -80,7 +98,7 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await q.message.delete()
 
-# ===== User Data =====
+
 async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     offer_id = int(q.data.split(":")[1])
@@ -94,7 +112,8 @@ async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE)
     joined = user.date_joined.strftime("%Y/%m/%d")
 
     await q.answer(
-        f"👤 {user.name or user.username}\n📅 عضو از: {joined}",
+        f"👤 {user.name}\n"
+        f"{user.last_name}\n"
+        f"\n📅 عضو از: {joined}",
         show_alert=True
     )
-
