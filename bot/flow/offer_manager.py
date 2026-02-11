@@ -113,7 +113,7 @@ async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await q.answer(
         f"👤 {user.name}\n"
-        f"{user.last_name}\n"
+        f"👤{user.last_name}\n"
         f"\n📅 عضو از: {joined}",
         show_alert=True
     )
