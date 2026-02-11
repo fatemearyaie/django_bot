@@ -498,4 +498,5 @@ def build_registration_conversation():
         per_chat=True,
         name="registration_conversation",
         allow_reentry=True,
+        per_message=True,
     )

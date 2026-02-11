@@ -570,4 +570,5 @@ def build_offer_conversation() -> ConversationHandler:
         allow_reentry=True,
         per_user=True,
         per_chat=True,
+        per_message=True,
     )

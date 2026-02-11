@@ -785,4 +785,5 @@ def get_trade_request_conversation():
         per_chat=True,
         name="trade_request_conversation",
         allow_reentry=True,
+        per_message=True,
     )
