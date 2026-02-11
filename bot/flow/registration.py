@@ -22,7 +22,7 @@ from Users.models import CustomUser, Country
 
 
 # ====== Channel Gate ======
-REQUIRED_CHANNEL = "@excointmarket"
+REQUIRED_CHANNEL = "@excoinmarket"
 CHANNEL_JOIN_URL = f"https://t.me/{REQUIRED_CHANNEL.lstrip('@')}"
 
 
