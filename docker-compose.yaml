@@ -3,8 +3,8 @@ services:
     build:
       context: .
       args:
-        DJANGO_SETTINGS_MODULE: Hayari.settings.production
-    container_name: hayari
+        DJANGO_SETTINGS_MODULE: TestBot.settings.production
+    container_name: django-bot
     volumes:
       - ./:/app
     ports:
@@ -12,16 +12,14 @@ services:
     env_file:
       - .env
     environment:
-      - DJANGO_SETTINGS_MODULE=Hayari.settings.production
+      - DJANGO_SETTINGS_MODULE=TestBot.settings.production
       - RUN_MIGRATIONS=1
-    depends_on:
-      - redis
     networks:
-      - hayari-network
+      - bot-network
     extra_hosts:
       - "host.docker.internal:172.17.0.1"
     command: >
-      gunicorn Hayari.asgi:application
+      gunicorn TestBot.asgi:application
           -k uvicorn.workers.UvicornWorker
           --workers 3
           --worker-connections 1000
@@ -31,55 +29,8 @@ services:
           --max-requests 1000
           --max-requests-jitter 100
 
-  celery:
-    build: .
-    container_name: hayari-celery
-    command: celery -A Hayari worker -l INFO --concurrency=4
-    env_file:
-      - .env
-    environment:
-      DJANGO_SETTINGS_MODULE: Hayari.settings.production
-    volumes:
-      - .:/app
-    depends_on:
-      - redis
-    networks:
-      - hayari-network
-    extra_hosts:
-      - "host.docker.internal:172.17.0.1"
-
-  celery-beat:
-    build: .
-    container_name: hayari-celery-beat
-    command: celery -A Hayari beat -l INFO
-    env_file:
-      - .env
-    environment:
-      DJANGO_SETTINGS_MODULE: Hayari.settings.production
-    volumes:
-      - .:/app
-    networks:
-      - hayari-network
-    depends_on:
-      - redis
-
-
-  redis:
-    image: redis:7.2-alpine
-    container_name: hayari-redis
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    networks:
-      - hayari-network
-    command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-
 networks:
-  hayari-network:
+  bot-network:
     driver: bridge
     ipam:
       config:
