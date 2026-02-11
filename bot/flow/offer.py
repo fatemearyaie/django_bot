@@ -40,6 +40,10 @@ START_OFFER_RE = re.compile(r"^offer_(\d+)$")
 
 RATE, NOTE, CONFIRM = range(3)
 
+# --- NEW: callback keys for inline "glass" buttons (no conflict with your existing ones) ---
+CB_HOME = "offerflow:home"
+CB_PROFILE = "offerflow:profile"
+
 
 @dataclass
 class OfferDraft:
@@ -59,7 +63,66 @@ def _rk(rows: list[list[str]]) -> ReplyKeyboardMarkup:
 
 
 def _main_menu_kb() -> ReplyKeyboardMarkup:
+    """
+    IMPORTANT FIX:
+    قبلاً اینجا کیبورد دستی می‌ساختیم که ممکنه متن دکمه‌هاش با هندلرهای اصلی پروژه یکی نباشه.
+    الان همون کیبورد استاندارد پروژه رو برمی‌گردونیم تا «منوی اصلی/پروفایل» حتماً کار کنه.
+    """
+    try:
+        kb = build_main_menu_keyboard()
+        if kb:
+            return kb
+    except Exception:
+        pass
     return _rk([["🏠 منوی اصلی"], ["👤 پروفایل"]])
+
+
+def _main_menu_inline_kb() -> InlineKeyboardMarkup:
+    """
+    NEW:
+    دکمه‌های شیشه‌ای زیر پیام برای منوی اصلی/پروفایل
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🏠 منوی اصلی", callback_data=CB_HOME),
+                InlineKeyboardButton("👤 پروفایل", callback_data=CB_PROFILE),
+            ]
+        ]
+    )
+
+
+async def _go_home(message_obj):
+    # یک پیام امن برای برگشت به منوی اصلی
+    await message_obj.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
+
+
+async def _go_profile(message_obj):
+    # اگر در پروژه‌ت «پروفایل» با متن کار می‌کنه، همین متن رو ارسال می‌کنیم تا هندلر اصلیت بگیره.
+    # این باعث میشه بدون اینکه این فایل منطق پروفایل رو بدونه، کاربر به همان مسیر پروفایل هدایت شود.
+    await message_obj.reply_text("👤 پروفایل", reply_markup=_main_menu_kb())
+
+
+async def offerflow_inline_nav_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    NEW:
+    هندل دکمه‌های شیشه‌ای زیر پیام (منوی اصلی/پروفایل)
+    """
+    q = update.callback_query
+    if not q:
+        return
+    try:
+        await q.answer()
+    except Exception:
+        pass
+
+    if q.data == CB_HOME:
+        await _go_home(q.message)
+        return
+
+    if q.data == CB_PROFILE:
+        await _go_profile(q.message)
+        return
 
 
 async def is_member_of_required_channel(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
@@ -134,6 +197,11 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "لطفاً از منوی «پروفایل» وارد شو و فرایند ثبت‌نام را کامل کن، سپس دوباره از روی پیام کانال روی «پیشنهاد بده» بزن.",
             reply_markup=_main_menu_kb(),
         )
+        # NEW: شیشه‌ای هم اضافه کن (برای کاربرهایی که ReplyKeyboard براشون مشکل داره)
+        await msg.reply_text(
+            "برای ادامه یکی از گزینه‌های زیر رو بزن:",
+            reply_markup=_main_menu_inline_kb(),
+        )
         return ConversationHandler.END
 
     if not await is_member_of_required_channel(context, tg.id):
@@ -142,12 +210,25 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             f"اول عضو {REQUIRED_CHANNEL} شو، بعد دوباره از روی همون پیام کانال روی «پیشنهاد بده» بزن.",
             reply_markup=_main_menu_kb(),
         )
+        # NEW: شیشه‌ای هم اضافه کن
+        await msg.reply_text(
+            "برای ادامه یکی از گزینه‌های زیر رو بزن:",
+            reply_markup=_main_menu_inline_kb(),
+        )
         return ConversationHandler.END
 
     try:
         req = await _get_trade_request_for_offer(request_id)
     except TradeRequest.DoesNotExist:
-        await msg.reply_text("❌ این درخواست پیدا نشد یا دیگر فعال نیست.", reply_markup=_main_menu_kb())
+        await msg.reply_text(
+            "❌ این درخواست پیدا نشد یا دیگر فعال نیست.",
+            reply_markup=_main_menu_kb(),
+        )
+        # NEW: شیشه‌ای هم اضافه کن
+        await msg.reply_text(
+            "می‌تونی از اینجا بری:",
+            reply_markup=_main_menu_inline_kb(),
+        )
         return ConversationHandler.END
 
     req_rate = int(req.unit_price_irt) if req.unit_price_irt is not None else None
@@ -178,7 +259,8 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     d: OfferDraft | None = context.user_data.get("offer_draft")
     if not d:
-        await msg.reply_text("❌ نشست شما منقضی شده. دوباره از روی پیام کانال اقدام کن.")
+        await msg.reply_text("❌ نشست شما منقضی شده. دوباره از روی پیام کانال اقدام کن.", reply_markup=_main_menu_kb())
+        await msg.reply_text("می‌تونی از اینجا بری:", reply_markup=_main_menu_inline_kb())
         return ConversationHandler.END
 
     text = (msg.text or "").strip()
@@ -220,7 +302,8 @@ async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     d: OfferDraft | None = context.user_data.get("offer_draft")
     if not d or d.proposed_rate is None:
-        await msg.reply_text("❌ نشست شما منقضی/ناقصه. دوباره از روی پیام کانال اقدام کن.")
+        await msg.reply_text("❌ نشست شما منقضی/ناقصه. دوباره از روی پیام کانال اقدام کن.", reply_markup=_main_menu_kb())
+        await msg.reply_text("می‌تونی از اینجا بری:", reply_markup=_main_menu_inline_kb())
         return ConversationHandler.END
 
     text = (msg.text or "").strip()
@@ -250,7 +333,8 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     d: OfferDraft | None = context.user_data.get("offer_draft")
     if not d or d.proposed_rate is None:
-        await msg.reply_text("❌ نشست شما منقضی شده. دوباره از روی پیام کانال اقدام کن.")
+        await msg.reply_text("❌ نشست شما منقضی شده. دوباره از روی پیام کانال اقدام کن.", reply_markup=_main_menu_kb())
+        await msg.reply_text("می‌تونی از اینجا بری:", reply_markup=_main_menu_inline_kb())
         return ConversationHandler.END
 
     text = (msg.text or "").strip()
@@ -272,8 +356,9 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await msg.reply_text(
             "❌ شما عضو کانال ما نیستی.\n"
             f"اول عضو {REQUIRED_CHANNEL} شو، بعد دوباره تلاش کن.",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=_main_menu_kb(),
         )
+        await msg.reply_text("برای ادامه یکی از گزینه‌های زیر رو بزن:", reply_markup=_main_menu_inline_kb())
         return ConversationHandler.END
 
     try:
@@ -281,13 +366,15 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     except Exception:
         context.user_data.pop("offer_draft", None)
         await msg.reply_text("❌ کاربر شما در سیستم پیدا نشد. اول ثبت‌نام رو کامل کن.", reply_markup=_main_menu_kb())
+        await msg.reply_text("برای ادامه یکی از گزینه‌های زیر رو بزن:", reply_markup=_main_menu_inline_kb())
         return ConversationHandler.END
 
     try:
         req = await _get_trade_request_for_offer(d.request_id)
     except Exception:
         context.user_data.pop("offer_draft", None)
-        await msg.reply_text("❌ این درخواست دیگر فعال نیست.", reply_markup=ReplyKeyboardRemove())
+        await msg.reply_text("❌ این درخواست دیگر فعال نیست.", reply_markup=_main_menu_kb())
+        await msg.reply_text("می‌تونی از اینجا بری:", reply_markup=_main_menu_inline_kb())
         return ConversationHandler.END
 
     try:
@@ -300,8 +387,9 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         context.user_data.pop("offer_draft", None)
         await msg.reply_text(
             "❌ شما قبلاً برای این درخواست یک پیشنهاد ثبت کرده‌اید.",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=_main_menu_kb(),
         )
+        await msg.reply_text("می‌تونی از اینجا بری:", reply_markup=_main_menu_inline_kb())
         return ConversationHandler.END
 
     try:
@@ -330,6 +418,7 @@ async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     msg = update.effective_message
     if msg:
         await msg.reply_text("کنسل شد.", reply_markup=ReplyKeyboardRemove())
+        await msg.reply_text("می‌تونی از اینجا بری:", reply_markup=_main_menu_inline_kb())
     return ConversationHandler.END
 
 
@@ -497,6 +586,9 @@ def get_my_offers_handlers():
         CommandHandler("offers", my_offers_entry),
         MessageHandler(filters.Regex(r"^📬پیشنهادهای من$"), my_offers_entry),
         CallbackQueryHandler(my_offers_page_cb, pattern=r"^offers:(\d+|home)$"),
+
+        # NEW: inline nav for this module messages
+        CallbackQueryHandler(offerflow_inline_nav_cb, pattern=r"^offerflow:(home|profile)$"),
     ]
 
 
