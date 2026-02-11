@@ -3,7 +3,6 @@ from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
 from Trade.models.models import TradeOffer
 from Trade.services.offers_service import build_offer_after_accept_keyboard
-from bot.flow.registration import build_main_menu_keyboard
 
 
 # ==== helpers ===
@@ -41,8 +40,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=offer.sender.telegram_id,
-        text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد.",
-        reply_markup=build_main_menu_keyboard,
+        text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد."
     )
 
 
@@ -77,9 +75,7 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=offer.sender.telegram_id,
-        text="❌ متأسفانه پیشنهاد شما رد شد.",
-        reply_markup=build_main_menu_keyboard,
-
+        text="❌ متأسفانه پیشنهاد شما رد شد."
     )
 
     await q.message.delete()
