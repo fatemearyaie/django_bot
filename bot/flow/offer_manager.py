@@ -1,11 +1,11 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
+
 from Trade.models.models import TradeOffer
 from Trade.services.offers_service import build_offer_after_accept_keyboard
+from bot.handlers import build_main_menu_keyboard
 
-
-# ==== helpers ===
 
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
@@ -19,7 +19,7 @@ def get_offer_for_owner(offer_id: int, owner_tg_id: int):
         .first()
     )
 
-# ===== Accept =====
+
 async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -43,7 +43,6 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد."
     )
 
-
     new_text = (
         "🟩✅ *تایید شد*\n"
         "━━━━━━━━━━━━━━\n"
@@ -57,8 +56,12 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True,
     )
 
+    await q.message.reply_text(
+        "🏠 منوی اصلی",
+        reply_markup=build_main_menu_keyboard(),
+    )
 
-# ===== Reject =====
+
 async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -78,9 +81,22 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="❌ متأسفانه پیشنهاد شما رد شد."
     )
 
-    await q.message.delete()
+    try:
+        await q.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
 
-# ===== User Data =====
+    await q.message.reply_text(
+        "🏠 منوی اصلی",
+        reply_markup=build_main_menu_keyboard(),
+    )
+
+    try:
+        await q.message.delete()
+    except Exception:
+        pass
+
+
 async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     offer_id = int(q.data.split(":")[1])
@@ -97,4 +113,3 @@ async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"👤 {user.name or user.username}\n📅 عضو از: {joined}",
         show_alert=True
     )
-
