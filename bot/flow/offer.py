@@ -35,7 +35,7 @@ from Trade.services.offers_service import (
 from bot.flow.registration import get_or_create_user, is_profile_complete
 from bot.handlers import build_main_menu_keyboard
 
-REQUIRED_CHANNEL = "@testmestplat"
+REQUIRED_CHANNEL = "@excoinmarket"
 START_OFFER_RE = re.compile(r"^offer_(\d+)$")
 
 RATE, NOTE, CONFIRM = range(3)

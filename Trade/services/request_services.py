@@ -4,8 +4,8 @@ from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 
 from Trade.models.models import TradeRequest
 
-CHANNEL = "@testmestplat"
-BOT_USERNAME = "thisisatestforplattkar_bot"
+CHANNEL = "@excoinmarket"
+BOT_USERNAME = "excoinmarket_bot"
 
 
 def build_channel_post_text(req: TradeRequest) -> str:

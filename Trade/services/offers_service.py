@@ -4,7 +4,14 @@ from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.error import TelegramError
 from Trade.models.models import TradeRequest
 
-BOT_USERNAME = "thisisatestforplattkar_bot"
+BOT_USERNAME = None
+
+def init_bot_username():
+    global BOT_USERNAME
+    token = os.environ["API_TOKEN"]
+    me = async_to_sync(Bot(token=token).get_me)()
+    BOT_USERNAME = me.username
+
 
 def build_offer_manage_keyboard(offer_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
