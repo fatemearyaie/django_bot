@@ -94,7 +94,6 @@ def _users_yearly_series_last_n_years(n_years: int = 5):
         .annotate(value=Count("id"))
     )
 
-    # bucket ممکن است date یا datetime باشد؛ سال را با getattr امن می‌گیریم
     by_year = {}
     for r in rows:
         b = r["bucket"]
