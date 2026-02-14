@@ -2,7 +2,7 @@
 {% load i18n %}
 
 {% block content %}
-
+<html dir="ltr">
 <div dir="ltr" class="container mx-auto text-right">
 
   <!-- USERS: KPI + Chart -->
@@ -198,7 +198,7 @@
   </section>
 
 </div>
-
+</html>
 <script>
   const rawSeries = `{{ charts.users_series|default_if_none:''|safe }}`.trim();
   let usersSeries;
