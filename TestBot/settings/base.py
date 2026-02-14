@@ -120,6 +120,7 @@ UNFOLD = {
 
     "SIDEBAR": {
         "show_search": True,
+        "show_all_applications": True,
         "navigation": [
             {
                 "title": _("منوی ناوبری"),

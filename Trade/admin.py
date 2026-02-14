@@ -30,7 +30,6 @@ class TradeRequestAdmin(ModelAdmin):
         "unit_price_irt",
         "deal_method",
         "status",
-        "channel_message_id",
         "created_at",
     )
     list_filter = ("status", "role", "currency", "deal_method", "created_at")

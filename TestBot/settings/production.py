@@ -3,7 +3,7 @@ from decouple import config
 from .base import *
 from corsheaders.defaults import default_headers
 
-ALLOWED_HOSTS=['82.115.20.47','api.excoinmarket.shop','excoinmarket.shop','localhost','127.0.0.1','0.0.0.0']
+ALLOWED_HOSTS=['82.115.20.47','www.excoinmarket.shop','api.excoinmarket.shop','excoinmarket.shop','localhost','127.0.0.1','0.0.0.0']
 
 
 DEBUG = config("DEBUG")
