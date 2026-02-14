@@ -36,6 +36,9 @@ class TradeRequestAdmin(ModelAdmin):
     search_fields = ("id", "owner__username", "owner__telegram_username", "description")
     autocomplete_fields = ("owner",)
     ordering = ("-created_at",)
+    fields = ['owner','role','currency','amount','unit_price_irt','fee_irt',
+              'deal_method','description','status','created_at','updated_at',
+              'confirmed_at','editable_until','channel_post_text']
 
     readonly_fields = ("created_at", "updated_at",)
 
