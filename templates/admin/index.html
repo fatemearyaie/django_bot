@@ -3,23 +3,9 @@
 
 {% block content %}
 
-<style>
-  /* صفحه فارسی (RTL) بماند */
-  .rtl-page { direction: rtl; }
 
-  /* فقط کنترل‌ها LTR شوند (بدون بهم زدن متن‌ها) */
-  .rtl-page select,
-  .rtl-page input,
-  .rtl-page button,
-  .rtl-page textarea {
-    direction: ltr !important;
-    text-align: left !important;
-  }
 
-  /* اگر داخل select متن فارسی داری و می‌خوای راست‌چین باشه، روی همون گزینه خاص class بزن */
-</style>
-
-<div class="container mx-auto text-right rtl-page">
+<div class="container mx-auto">
 
   <!-- USERS: KPI + Chart -->
   <section class="mb-14">

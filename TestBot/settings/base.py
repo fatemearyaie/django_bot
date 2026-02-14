@@ -101,6 +101,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 UNFOLD = {
     "DASHBOARD_CALLBACK": "TestBot.admin.dashboard.dashboard_context",
     "SCRIPTS": [lambda request: static("admin/js/chart.umd.min.js")],
+    "STYLES": [lambda request: static("admin/css/rtl-actions-fix.css"),],
+
+
 
     "SITE_TITLE": "ExCoinMarket",
     "SITE_HEADER": "ExCoinMarket",
