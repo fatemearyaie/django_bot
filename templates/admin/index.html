@@ -4,16 +4,22 @@
 {% block content %}
 
 <style>
-  .ltr-controls select,
-  .ltr-controls input,
-  .ltr-controls button {
+  /* صفحه فارسی (RTL) بماند */
+  .rtl-page { direction: rtl; }
+
+  /* فقط کنترل‌ها LTR شوند (بدون بهم زدن متن‌ها) */
+  .rtl-page select,
+  .rtl-page input,
+  .rtl-page button,
+  .rtl-page textarea {
     direction: ltr !important;
     text-align: left !important;
   }
+
+  /* اگر داخل select متن فارسی داری و می‌خوای راست‌چین باشه، روی همون گزینه خاص class بزن */
 </style>
 
-{# ✅ اینجا dir رو RTL نگه می‌داریم تا فارسی‌سازی admin خراب نشه #}
-<div dir="rtl" class="container mx-auto text-right">
+<div class="container mx-auto text-right rtl-page">
 
   <!-- USERS: KPI + Chart -->
   <section class="mb-14">
@@ -72,18 +78,14 @@
       </div>
 
       <!-- RIGHT: chart -->
-
       <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm md:col-span-4">
         <div class="p-5">
-
-          {# ✅ فقط کنترل‌ها LTR شوند (select و دکمه‌ها) #}
-          <div class="flex items-center justify-between gap-3 ltr-controls">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100" dir="rtl">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {% trans "ثبت‌نام‌ها" %}
             </h3>
 
             <select id="usersGranularity"
-                    dir="ltr"
                     class="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100">
               <option value="daily">{% trans "روزانه" %}</option>
               <option value="monthly">{% trans "ماهانه" %}</option>
@@ -94,13 +96,11 @@
           <div class="mt-4 h-[56px]">
             <canvas id="usersRegistrationsChart" class="w-full h-full"></canvas>
           </div>
-
         </div>
       </div>
 
     </div>
   </section>
-
 
   <!-- REQUEST + OFFER -->
   <section class="mb-14">
@@ -156,7 +156,6 @@
           </div>
         </div>
       </div>
-
 
       <!-- OFFERS -->
       <div class="rounded-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-900 shadow-sm">
@@ -251,28 +250,16 @@
       interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false } },
       scales: {
-        x: {
-          ticks: { autoSkip: true, maxTicksLimit: 5 },
-          grid: { display: false }
-        },
-        y: {
-          beginAtZero: true,
-          grid: { color: 'rgba(0,0,0,0.08)' }
-        }
+        x: { ticks: { autoSkip: true, maxTicksLimit: 5 }, grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.08)' } }
       }
     }
   });
 
   document.getElementById('usersGranularity').addEventListener('change', (e) => {
     currentMode = e.target.value;
-
     usersChart.data.labels = usersSeries[currentMode].labels;
     usersChart.data.datasets[0].data = usersSeries[currentMode].values;
-
-    usersChart.data.datasets[0].pointRadius = currentMode === 'daily' ? 1 : 2;
-
-    usersChart.options.scales.x.ticks.maxTicksLimit = currentMode === 'daily' ? 12 : 10;
-
     usersChart.update();
   });
 </script>
