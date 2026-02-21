@@ -1,10 +1,10 @@
 import os
+import re
 from asgiref.sync import async_to_sync
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.error import TelegramError
 
 from Trade.models.models import TradeRequest
-
 
 BOT_USERNAME = "excoinmarket_bot"
 
@@ -14,7 +14,12 @@ STATUS_EMOJI = {
     "REJECTED": "❌",
 }
 
+MARKER = "👥 *پیشنهاددهنده‌ها:*"
 
+
+# -----------------------
+# Keyboards
+# -----------------------
 def build_offer_manage_keyboard(offer_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
@@ -39,6 +44,9 @@ def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
     ])
 
 
+# -----------------------
+# Messages
+# -----------------------
 def build_offer_message(offer):
     user = offer.sender
     joined = user.date_joined.strftime("%Y/%m/%d")
@@ -51,11 +59,70 @@ def build_offer_message(offer):
     )
 
 
+# -----------------------
+# Helpers
+# -----------------------
+def _emoji_for(status: str) -> str:
+    return STATUS_EMOJI.get(status, STATUS_EMOJI["PENDING"])
+
+
 def _render_offer_line(offer_id: int, offer_name: str, status: str) -> str:
-    emoji = STATUS_EMOJI.get(status, "📥")
-    return f"{emoji} {offer_name}"
+    """
+    فرمت پایدار (برای اینکه بعداً دقیق update کنیم):
+    ✅ [123] Ali
+    """
+    return f"{_emoji_for(status)} [{offer_id}] {offer_name}".strip()
 
 
+def _normalize_line_text(s: str) -> str:
+    """
+    برای match با اسم در دیتاهای قدیمی:
+    ایموجی‌ها، [id] و فاصله‌های اضافی حذف میشن
+    """
+    if not s:
+        return ""
+
+    s = s.strip()
+
+    # remove our emojis
+    for emo in STATUS_EMOJI.values():
+        s = s.replace(emo, "")
+
+    # remove [123]
+    s = re.sub(r"\[\s*\d+\s*\]", "", s)
+
+    # collapse spaces
+    s = " ".join(s.split()).strip()
+    return s
+
+
+def _extract_offer_id(line: str) -> int | None:
+    m = re.search(r"\[\s*(\d+)\s*\]", line or "")
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except Exception:
+        return None
+
+
+def _split_base_text(base_text: str) -> tuple[str, list[str]]:
+    """
+    خروجی:
+      head (متن قبل از marker)
+      lines (لیست لاین‌های پیشنهاددهنده‌ها)
+    """
+    if MARKER not in base_text:
+        return base_text.rstrip(), []
+
+    head, tail = base_text.split(MARKER, 1)
+    lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
+    return head.rstrip(), lines
+
+
+# -----------------------
+# Core: Upsert
+# -----------------------
 def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, status: str = "PENDING") -> bool:
     token = os.environ.get("API_TOKEN")
     if not token:
@@ -76,27 +143,53 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
         print("No channel_post_text to edit from")
         return False
 
-    marker = "👥 *پیشنهاددهنده‌ها:*"
     new_line = _render_offer_line(offer_id=offer_id, offer_name=offer_name, status=status)
 
-    if marker in base_text:
-        head, tail = base_text.split(marker, 1)
-        lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
+    head, lines = _split_base_text(base_text)
 
-        target = f"(#{offer_id})"
-        found = False
-        for i, ln in enumerate(lines):
-            if target in ln:
-                lines[i] = new_line
-                found = True
-                break
+    # 1) اول با offer_id دقیق پیدا کن
+    found = False
+    for i, ln in enumerate(lines):
+        existing_id = _extract_offer_id(ln)
+        if existing_id == offer_id:
+            lines[i] = new_line
+            found = True
+            break
 
-        if not found:
-            lines.append(new_line)
+    # 2) اگر پیدا نشد، fallback با اسم (برای پیام‌های قدیمی که id نداشتند)
+    if not found:
+        name_norm = _normalize_line_text(offer_name)
+        if name_norm:
+            for i, ln in enumerate(lines):
+                # اگر خط قبلی id ندارد و اسمش یکی است، همان را update کن
+                if _extract_offer_id(ln) is None and _normalize_line_text(ln) == name_norm:
+                    lines[i] = new_line
+                    found = True
+                    break
 
-        new_text = head.rstrip() + "\n\n" + marker + "\n" + "\n".join(lines) + "\n"
+    # 3) اگر باز هم نبود، اضافه کن
+    if not found:
+        lines.append(new_line)
+
+    # 4) ضد تکرار: اگر دو خط با یک offer_id داریم، فقط آخرین را نگه دار
+    deduped = []
+    seen_ids = set()
+    for ln in reversed(lines):
+        oid = _extract_offer_id(ln)
+        if oid is None:
+            deduped.append(ln)
+            continue
+        if oid in seen_ids:
+            continue
+        seen_ids.add(oid)
+        deduped.append(ln)
+    lines = list(reversed(deduped))
+
+    # ساخت متن نهایی
+    if lines:
+        new_text = head + "\n\n" + MARKER + "\n" + "\n".join(lines) + "\n"
     else:
-        new_text = base_text.rstrip() + "\n\n" + marker + "\n" + new_line + "\n"
+        new_text = head
 
     bot = Bot(token=token)
 
@@ -109,7 +202,6 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
             reply_markup=build_channel_keyboard(req.id),
             disable_web_page_preview=True,
         )
-
         TradeRequest.objects.filter(pk=req.pk).update(channel_post_text=new_text)
         return True
 
@@ -121,12 +213,23 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
         return False
 
 
-def add_offer_name_to_channel(req_id: int, offer_name: str, offer_id: int | None = None) -> bool:
-    if offer_id is None:
-        return upsert_offer_line_in_channel(req_id=req_id, offer_id=0, offer_name=offer_name, status="PENDING")
-
-    return upsert_offer_line_in_channel(req_id=req_id, offer_id=offer_id, offer_name=offer_name, status="PENDING")
+# -----------------------
+# Wrappers
+# -----------------------
+def add_offer_name_to_channel(req_id: int, offer_name: str, offer_id: int) -> bool:
+    # از این به بعد offer_id باید اجباری باشه
+    return upsert_offer_line_in_channel(
+        req_id=req_id,
+        offer_id=offer_id,
+        offer_name=offer_name,
+        status="PENDING",
+    )
 
 
 def set_offer_status_in_channel(req_id: int, offer_id: int, offer_name: str, status: str) -> bool:
-    return upsert_offer_line_in_channel(req_id=req_id, offer_id=offer_id, offer_name=offer_name, status=status)
+    return upsert_offer_line_in_channel(
+        req_id=req_id,
+        offer_id=offer_id,
+        offer_name=offer_name,
+        status=status,
+    )
