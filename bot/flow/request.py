@@ -353,10 +353,10 @@ def map_method(text: str) -> str | None:
         return TradeRequest.DealMethod.PAYPAL
     if t == "حواله":
         return TradeRequest.DealMethod.TRANSFER
-    if t == "نقدی":
-        return TradeRequest.DealMethod.CASH
+    if t == "مستر کارت":
+        return TradeRequest.DealMethod.MASTER
     if t == "سایر":
-        return TradeRequest.DealMethod.TRANSFER
+        return TradeRequest.DealMethod.OTHER
     return None
 
 
@@ -473,7 +473,7 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif field == "amount":
         amount = parse_amount(txt)
         if amount is None:
-            await update.message.reply_text("❌ مقدار نامعتبره. مثال: 100 یا 250.5")
+            await update.message.reply_text("❌ مقدار نامعتبره. ")
             return TR_EDIT_VALUE
         data["amount"] = amount
 
@@ -600,14 +600,14 @@ async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_CURRENCY
 
     context.user_data["tr"]["currency"] = cur
-    await update.message.reply_text("💰 مقدار ارز رو وارد کن (مثلاً 100 یا 250.5):", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("💰 مقدار ارز رو وارد کن", reply_markup=ReplyKeyboardRemove())
     return TR_AMOUNT
 
 
 async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount = parse_amount(update.message.text)
     if amount is None:
-        await update.message.reply_text("❌ مقدار نامعتبره. مثال: 100 یا 250.5")
+        await update.message.reply_text("❌ مقدار نامعتبره.")
         return TR_AMOUNT
 
     context.user_data["tr"]["amount"] = amount
