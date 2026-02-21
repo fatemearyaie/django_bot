@@ -3,6 +3,7 @@ from asgiref.sync import async_to_sync
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 
 from Trade.models.models import TradeRequest
+from bot.flow.registration import build_main_menu_keyboard
 
 CHANNEL = "@excoinmarket"          # یا بهتر: channel id عددی
 BOT_USERNAME = "excoinmarket_bot"
@@ -66,12 +67,13 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
             channel_post_text=text,
         )
 
-        # (اختیاری) اطلاع به صاحب آگهی - بدون اشاره به ادمین
         try:
             if req.owner and req.owner.telegram_id:
                 async_to_sync(bot.send_message)(
                     chat_id=req.owner.telegram_id,
-                    text=f"✅ درخواست شما (#{req.id}) منتشر شد و در کانال نمایش داده شد."
+                    text=f"✅ درخواست شما (#{req.id}) منتشر شد و در کانال نمایش داده شد.",
+                    reply_markup=build_main_menu_keyboard(),
+
                 )
         except Exception as e:
             print("TELEGRAM owner notify ERROR:", type(e), repr(e))
