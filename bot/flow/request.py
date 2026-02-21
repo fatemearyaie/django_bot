@@ -25,7 +25,10 @@ from django.utils import timezone
 from Users.models import CustomUser
 from Trade.models.models import TradeRequest, TradeOffer
 
-CHANNEL = "@excoinmarket"
+# ✅ سرویس جدید انتشار کانال (همون فایلی که خودت دادی)
+# مسیرش رو با پروژه‌ات هماهنگ کن:
+from Trade.services.channel_publish import publish_trade_request_to_channel
+
 
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
 
@@ -409,34 +412,6 @@ def get_fee_irt() -> int:
     return int(config("TRADE_REQUEST_FEE"))
 
 
-def build_request_channel_message(r: TradeRequest) -> str:
-    return (
-        "📣 *آگهی جدید*\n\n"
-        f"🆔 *#{r.id}*\n"
-        f"👤 نقش: {_role_fa(r.role)}\n"
-        f"💱 ارز: {r.currency}\n"
-        f"💰 مقدار: {r.amount}\n"
-        f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
-        f"💳 روش معامله: {r.deal_method}\n"
-        f"📝 توضیحات: {r.description or '—'}\n"
-    )
-
-
-async def send_request_to_channel(context: ContextTypes.DEFAULT_TYPE, req: TradeRequest):
-    bot_username = context.bot.username
-    url = f"https://t.me/{bot_username}?start=offer_{req.id}"
-
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("💬 پیشنهاد بده", url=url)]])
-
-    await context.bot.send_message(
-        chat_id=CHANNEL,
-        text=build_request_channel_message(req),
-        parse_mode="Markdown",
-        reply_markup=kb,
-        disable_web_page_preview=True,
-    )
-
-
 async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get("tr", {})
 
@@ -475,11 +450,11 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "amount":
-        await q.message.reply_text("💰 مقدار ارز مد نظرت رو انتخاب کن یا مقدار ارز رو وارد کن ", reply_markup=amount_key)
+        await q.message.reply_text("💰 مقدار ارز مد نظرت رو انتخاب کن یا مقدار ارز رو وارد کن", reply_markup=amount_key)
         return TR_EDIT_VALUE
 
     if action == "unit_price_irt":
-        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان رو انتخاب کن", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان رو وارد کن (فقط عدد):", reply_markup=ReplyKeyboardRemove())
         return TR_EDIT_VALUE
 
     if action == "deal_method":
@@ -522,7 +497,7 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif field == "amount":
         amount = parse_amount(txt)
         if amount is None:
-            await update.message.reply_text("❌ مقدار نامعتبره. ")
+            await update.message.reply_text("❌ مقدار نامعتبره.")
             return TR_EDIT_VALUE
         data["amount"] = amount
 
@@ -541,9 +516,7 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data["deal_method"] = method
 
     elif field == "description":
-        if txt == "📝 بدون توضیحات":
-            txt = ""
-        if txt == "-":
+        if txt == "📝 بدون توضیحات" or txt == "-":
             txt = ""
         data["description"] = txt
 
@@ -660,7 +633,12 @@ async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_AMOUNT
 
     context.user_data["tr"]["amount"] = amount
-    await update.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):")
+
+    # ✅ اینجا کیبورد مقدار باید جمع بشه
+    await update.message.reply_text(
+        "🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):",
+        reply_markup=ReplyKeyboardRemove(),
+    )
     return TR_UNIT_PRICE
 
 
@@ -691,9 +669,7 @@ async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     desc = (update.message.text or "").strip()
-    if desc == "📝 بدون توضیحات":
-        desc = ""
-    if desc == "-":
+    if desc == "📝 بدون توضیحات" or desc == "-":
         desc = ""
 
     context.user_data["tr"]["description"] = desc
@@ -767,18 +743,25 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await set_confirm_window(req.id)
 
-    # ✅ ارسال مستقیم به کانال (بدون تایید ادمین)
+    # ✅ انتشار با سرویس جدید (ذخیره channel_message_id)
+    ok = False
     try:
-        await send_request_to_channel(context, req)
+        ok = await sync_to_async(publish_trade_request_to_channel)(req.id)
     except Exception:
-        pass
+        ok = False
 
-    await update.message.reply_text(
-        "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.\n"
-        "⚠️ فقط *۱۰ دقیقه* فرصت داری آگهی رو *ویرایش یا حذف* کنی.",
-        parse_mode="Markdown",
-        reply_markup=build_manage_after_submit_keyboard(req.id),
-    )
+    if ok:
+        await update.message.reply_text(
+            "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.\n"
+            "⚠️ فقط *۱۰ دقیقه* فرصت داری آگهی رو *ویرایش یا حذف* کنی.",
+            parse_mode="Markdown",
+            reply_markup=build_manage_after_submit_keyboard(req.id),
+        )
+    else:
+        await update.message.reply_text(
+            "⚠️ درخواستت ثبت شد ولی انتشار در کانال ناموفق بود. (لطفاً لاگ سرور رو چک کن)",
+            reply_markup=build_main_menu_keyboard(),
+        )
 
     await update.message.reply_text(
         "🏠 برگشتی به منوی اصلی.",

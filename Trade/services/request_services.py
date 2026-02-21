@@ -4,25 +4,24 @@ from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 
 from Trade.models.models import TradeRequest
 
-CHANNEL = "@excoinmarket"
+CHANNEL = "@excoinmarket"          # یا بهتر: channel id عددی
 BOT_USERNAME = "excoinmarket_bot"
 
 
 def build_channel_post_text(req: TradeRequest) -> str:
     role = "خریدار" if req.role == TradeRequest.Role.BUYER else "فروشنده"
-    amount = getattr(req, 'amount', None)
-    amount_txt = f"{amount}" if amount is not None else "-"
 
     return (
         "📌 *درخواست جدید*\n\n"
         f"🆔 شناسه: `{req.id}`\n"
         f"👤 نقش: {role}\n"
         f"💱 ارز: {req.currency}\n"
-        f"💰 مقدار: {amount_txt}\n"
-        f"💰 قیمت هر واحد (تومان): {req.unit_price_irt}\n"
+        f"💰 مقدار: {req.amount}\n"
+        f"🏷 قیمت هر واحد (تومان): {req.unit_price_irt:,}\n"
         f"💳 روش معامله: {req.deal_method}\n"
-        f"📝 توضیحات: {req.description or '—'}\n"
-        "\n——————————————\n\n"
+        f"📝 توضیحات: {req.description or '—'}\n\n"
+        "👥 پیشنهاددهنده‌ها: —\n"
+        "\n——————————————\n"
     )
 
 
@@ -43,6 +42,7 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
         print("TradeRequest not found:", req_id)
         return False
 
+    # اگر قبلاً منتشر شده، دوباره نفرست
     if req.channel_chat_id and req.channel_message_id:
         return True
 
@@ -58,18 +58,19 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
             disable_web_page_preview=True,
         )
 
+        # ذخیره برای ادیت‌های بعدی (مثل اضافه کردن پیشنهاددهنده‌ها)
         TradeRequest.objects.filter(pk=req.pk).update(
             channel_chat_id=msg.chat.id,
             channel_message_id=msg.message_id,
             channel_post_text=text,
         )
 
+        # (اختیاری) اطلاع به صاحب آگهی - بدون اشاره به ادمین
         try:
-            tg_id = getattr(req.owner, "telegram_id", None)
-            if tg_id:
+            if req.owner and req.owner.telegram_id:
                 async_to_sync(bot.send_message)(
-                    chat_id=tg_id,
-                    text=f"✅ درخواست شما (#{req.id}) توسط ادمین تایید شد و در کانال منتشر شد."
+                    chat_id=req.owner.telegram_id,
+                    text=f"✅ درخواست شما (#{req.id}) منتشر شد و در کانال نمایش داده شد."
                 )
         except Exception as e:
             print("TELEGRAM owner notify ERROR:", type(e), repr(e))
