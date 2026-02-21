@@ -434,11 +434,11 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "amount":
-        await q.message.reply_text("💰 مقدار ارز رو وارد کن", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text("💰 مقدار ارز مد نظرت رو انتخاب کن یا مقدار ارز رو وارد کن ", reply_markup=amount_key)
         return TR_EDIT_VALUE
 
     if action == "unit_price_irt":
-        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان رو انتخاب کن یا قیمت مد نظرت رو وارد کن", reply_markup=amount_key)
+        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان رو انتخاب کن", reply_markup=ReplyKeyboardRemove())
         return TR_EDIT_VALUE
 
     if action == "deal_method":
