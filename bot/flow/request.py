@@ -741,22 +741,11 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         ok = False
 
-    if ok:
+    if not ok:
         await update.message.reply_text(
-            "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.\n",
-            parse_mode="Markdown",
-        )
-    else:
-        await update.message.reply_text(
-            "⚠️ درخواستت ثبت شد ولی انتشار در کانال ناموفق بود. (لطفاً لاگ سرور رو چک کن)",
+            "⚠️ درخواستت ثبت شد ولی انتشار در کانال ناموفق بود.دوباره تلاش کن",
             reply_markup=build_main_menu_keyboard(),
         )
-
-    await update.message.reply_text(
-        "🏠 برگشتی به منوی اصلی.",
-        reply_markup=build_main_menu_keyboard(),
-    )
-
     context.user_data.pop("tr", None)
     return ConversationHandler.END
 
