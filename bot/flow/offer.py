@@ -307,7 +307,7 @@ async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     await msg.reply_text(
         _offer_preview(d),
-        reply_markup=_rk([["❌ نه، منصرف شدم"]]),
+        reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
     )
     return CONFIRM
 
