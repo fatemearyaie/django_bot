@@ -43,9 +43,7 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
         print("TradeRequest not found:", req_id)
         return False
 
-    # اگر قبلاً منتشر شده، دوباره نفرست
-    if req.channel_chat_id and req.channel_message_id:
-        return True
+
 
     bot = Bot(token=token)
     text = build_channel_post_text(req)
@@ -59,7 +57,6 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
             disable_web_page_preview=True,
         )
 
-        # ذخیره برای ادیت‌های بعدی (مثل اضافه کردن پیشنهاددهنده‌ها)
         TradeRequest.objects.filter(pk=req.pk).update(
             channel_chat_id=msg.chat.id,
             channel_message_id=msg.message_id,

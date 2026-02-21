@@ -65,13 +65,13 @@ def add_offer_name_to_channel(req_id: int, offer_name: str) -> bool:
 
     if marker in base_text:
         head, tail = base_text.split(marker, 1)
-        existing = [x.strip().lstrip("•").strip() for x in tail.strip().splitlines() if x.strip()]
+        existing = [x.strip().lstrip("➕").strip() for x in tail.strip().splitlines() if x.strip()]
         if offer_name not in existing:
             existing.append(offer_name)
         lines = "\n".join([f"➕ {n}" for n in existing])
         new_text = head.rstrip() + "\n\n" + marker + "\n" + lines + "\n"
     else:
-        new_text = base_text.rstrip() + "\n\n" + marker + "\n" + f"• {offer_name}\n"
+        new_text = base_text.rstrip() + "\n\n" + marker + "\n" + f"➕ {offer_name}\n"
 
     bot = Bot(token=token)
 
