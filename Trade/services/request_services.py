@@ -20,8 +20,9 @@ def build_channel_post_text(req: TradeRequest) -> str:
         f"🏷 قیمت هر واحد (تومان): {req.unit_price_irt:,}\n"
         f"💳 روش معامله: {req.deal_method}\n"
         f"📝 توضیحات: {req.description or '—'}\n\n"
+        "\n——————————————\n\n"
         "👥 پیشنهاددهنده‌ها: —\n"
-        "\n——————————————\n"
+
     )
 
 
