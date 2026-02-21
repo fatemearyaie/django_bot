@@ -60,7 +60,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=
             "✅ *پیشنهاد شما تایید شد*\n\n"
                 f"📌 آگهی: {offer.request.id}\n"
-                f" مبلغ: {offer.request.amount}"
+                f" مقدار: {offer.request.amount}\n"
                 f"✅ نرخ پیشنهادی شما: {offer.unit_price_irt}\n"
                 f"📝 توضیحات: {offer.message if offer.message else '—'}\n\n"
                 f"\nاین پیام رو برای ادمین بفرستید تا ارتباط بین شما و درخواست دهنده برقرار بشه. "
