@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
+from Trade.services.offers_service import set_offer_status_in_channel
 
 from Trade.models.models import TradeOffer
 from Trade.services.offers_service import build_offer_after_accept_keyboard
@@ -40,8 +41,17 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.answer("قبلاً تایید شده ✅", show_alert=False)
         return
 
+
     offer.status = TradeOffer.Status.ACCEPTED
     await sync_to_async(offer.save)()
+
+    offer_name = offer.sender.name or offer.sender.username or ""
+    await sync_to_async(set_offer_status_in_channel)(
+        offer.request.id,
+        offer.id,
+        offer_name,
+        "ACCEPTED"
+    )
 
     try:
         await context.bot.send_message(
@@ -90,6 +100,14 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     offer.status = TradeOffer.Status.REJECTED
     await sync_to_async(offer.save)()
+
+    offer_name = offer.sender.name or offer.sender.username or ""
+    await sync_to_async(set_offer_status_in_channel)(
+        offer.request.id,
+        offer.id,
+        offer_name,
+        "REJECTED"
+    )
 
     await context.bot.send_message(
         chat_id=offer.sender.telegram_id,

@@ -346,10 +346,17 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return ConversationHandler.END
 
     try:
+        from Trade.services.offers_service import upsert_offer_line_in_channel
+
         offer = await _create_offer(req=req, sender=sender, unit_price_irt=int(d.proposed_rate), message=d.note or "")
 
         offer_name = sender.name or sender.username or ""
-        await sync_to_async(add_offer_name_to_channel)(req.id, offer_name)
+        await sync_to_async(upsert_offer_line_in_channel)(
+            req.id,
+            offer.id,
+            offer_name,
+            "PENDING"
+        )
 
     except IntegrityError:
         context.user_data.pop("offer_draft", None)
