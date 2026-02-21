@@ -608,7 +608,7 @@ async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_CURRENCY
 
     context.user_data["tr"]["currency"] = cur
-    await update.message.reply_text("💰 مقدار ارز رو وارد کن", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("💰 مقدار ارز رو انتخاب کن یا مقدار ارز مد نظرت رو وارد کن", reply_markup=amount_key)
     return TR_AMOUNT
 
 
