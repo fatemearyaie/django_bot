@@ -19,16 +19,16 @@ from telegram.ext import (
 )
 
 from asgiref.sync import sync_to_async
-from datetime import timedelta
-from django.utils import timezone
 
 from Users.models import CustomUser
 from Trade.models.models import TradeRequest, TradeOffer
 
-from Trade.services.request_services import publish_trade_request_to_channel
+# ✅ سرویس جدید انتشار کانال (همون فایلی که خودت دادی)
+# مسیرش رو با پروژه‌ات هماهنگ کن:
+from Trade.services.channel_publish import publish_trade_request_to_channel
 
 
-TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
+TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM = range(7)
 
 side_key = ReplyKeyboardMarkup(
     [[KeyboardButton("خریدارم"), KeyboardButton("فروشنده ام")]],
@@ -66,7 +66,7 @@ amount_key = ReplyKeyboardMarkup(
 )
 
 confirm_key = ReplyKeyboardMarkup(
-    [[KeyboardButton("❌ اصلاح"), KeyboardButton("✅ تایید و ارسال")]],
+    [[KeyboardButton("✅ تایید و ارسال"), KeyboardButton("❌ لغو")]],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
@@ -78,35 +78,23 @@ no_desc_key = ReplyKeyboardMarkup(
 )
 
 
-def build_edit_request_inline_keyboard_v2():
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("✏️ اصلاح نقش (خریدار/فروشنده)", callback_data="req_edit:role")],
-            [InlineKeyboardButton("💱 اصلاح ارز", callback_data="req_edit:currency")],
-            [InlineKeyboardButton("💰 اصلاح مقدار", callback_data="req_edit:amount")],
-            [InlineKeyboardButton("🏷 اصلاح قیمت هر واحد", callback_data="req_edit:unit_price_irt")],
-            [InlineKeyboardButton("💳 اصلاح روش معامله", callback_data="req_edit:deal_method")],
-            [InlineKeyboardButton("📝 اصلاح توضیحات", callback_data="req_edit:description")],
-            [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit:back")],
-        ]
-    )
-
-
-def build_manage_after_submit_keyboard(req_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [[
-            InlineKeyboardButton("✏️ ویرایش", callback_data=f"req_manage:edit:{req_id}"),
-            InlineKeyboardButton("🗑 حذف", callback_data=f"req_manage:del:{req_id}"),
-        ]]
-    )
-
-
 MYREQ_PAGE_SIZE = 1
 
 
 @sync_to_async
 def get_user_by_tg(tg_id: int):
     return CustomUser.objects.filter(telegram_id=tg_id).first()
+
+
+def is_profile_ok(user: CustomUser) -> bool:
+    return bool(
+        user
+        and user.is_registered
+        and user.name
+        and user.last_name
+        and user.country_id
+        and user.phone
+    )
 
 
 def _role_fa(role: str) -> str:
@@ -268,76 +256,6 @@ async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE
     await send_my_requests_list(q.message, user, page=page, edit=True)
 
 
-def is_profile_ok(user: CustomUser) -> bool:
-    return bool(
-        user
-        and user.is_registered
-        and user.name
-        and user.last_name
-        and user.country_id
-        and user.phone
-    )
-
-
-@sync_to_async
-def set_confirm_window(req_id: int):
-    now = timezone.now()
-    TradeRequest.objects.filter(pk=req_id).update(
-        confirmed_at=now,
-        editable_until=now + timedelta(minutes=10),
-    )
-
-
-@sync_to_async
-def get_request_for_owner(req_id: int, owner_id: int):
-    return TradeRequest.objects.filter(id=req_id, owner_id=owner_id).first()
-
-
-def _is_request_editable(req: TradeRequest) -> bool:
-    if not req:
-        return False
-    if req.status == TradeRequest.Status.CLOSED:
-        return False
-    if not req.editable_until:
-        return False
-    return timezone.now() <= req.editable_until
-
-
-@sync_to_async
-def delete_request_for_owner(req_id: int, owner_id: int):
-    req = TradeRequest.objects.filter(id=req_id, owner_id=owner_id).first()
-    if not req:
-        return 0
-    if req.status == TradeRequest.Status.CLOSED:
-        return 0
-    if not req.editable_until or timezone.now() > req.editable_until:
-        return 0
-    deleted_count, _ = TradeRequest.objects.filter(id=req_id, owner_id=owner_id).delete()
-    return deleted_count
-
-
-@sync_to_async
-def update_request_for_owner(req_id: int, owner_id: int, data: dict):
-    req = TradeRequest.objects.filter(id=req_id, owner_id=owner_id).first()
-    if not req:
-        return 0
-    if req.status == TradeRequest.Status.CLOSED:
-        return 0
-    if not req.editable_until or timezone.now() > req.editable_until:
-        return 0
-
-    return TradeRequest.objects.filter(id=req_id, owner_id=owner_id).update(
-        role=data["role"],
-        currency=data["currency"],
-        amount=data["amount"],
-        unit_price_irt=data["unit_price_irt"],
-        deal_method=data["deal_method"],
-        description=data["description"],
-        fee_irt=data["fee_irt"],
-        updated_at=timezone.now(),
-    )
-
-
 @sync_to_async
 def create_exchange_request(
     owner: CustomUser,
@@ -426,163 +344,6 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     await message_obj.reply_text(preview, reply_markup=confirm_key)
 
 
-async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-
-    action = q.data.split(":", 1)[1]
-
-    if action == "back":
-        await q.message.reply_text("🔁 برگشتیم به پیش‌نمایش:", reply_markup=ReplyKeyboardRemove())
-        await send_preview(q.message, context)
-        return TR_CONFIRM
-
-    context.user_data["tr_edit_field"] = action
-
-    if action == "role":
-        await q.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
-        return TR_EDIT_VALUE
-
-    if action == "currency":
-        await q.message.reply_text("💱 ارز مورد نظرت چیه؟", reply_markup=currency_key)
-        return TR_EDIT_VALUE
-
-    if action == "amount":
-        await q.message.reply_text("💰 مقدار ارز مد نظرت رو انتخاب کن یا مقدار ارز رو وارد کن", reply_markup=amount_key)
-        return TR_EDIT_VALUE
-
-    if action == "unit_price_irt":
-        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان رو وارد کن (فقط عدد):", reply_markup=ReplyKeyboardRemove())
-        return TR_EDIT_VALUE
-
-    if action == "deal_method":
-        await q.message.reply_text("🔁 روش معاملت چیه؟", reply_markup=method_key)
-        return TR_EDIT_VALUE
-
-    if action == "description":
-        await q.message.reply_text("📝 توضیحاتی داری؟", reply_markup=no_desc_key)
-        return TR_EDIT_VALUE
-
-    await q.message.reply_text("❌ گزینه نامعتبر.")
-    return TR_EDIT_MENU
-
-
-async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    field = context.user_data.get("tr_edit_field")
-    data = context.user_data.get("tr", {})
-
-    if not field:
-        await update.message.reply_text("❌ خطا. دوباره اصلاح رو بزن.")
-        return TR_CONFIRM
-
-    txt = (update.message.text or "").strip()
-
-    if field == "role":
-        role = map_role(txt)
-        if not role:
-            await update.message.reply_text("❌ یکی از گزینه‌ها رو انتخاب کن.", reply_markup=side_key)
-            return TR_EDIT_VALUE
-        data["role"] = role
-
-    elif field == "currency":
-        cur = txt.upper()
-        allowed = {c[0] for c in TradeRequest.Currency.choices}
-        if cur not in allowed:
-            await update.message.reply_text("❌ ارز نامعتبره.", reply_markup=currency_key)
-            return TR_EDIT_VALUE
-        data["currency"] = cur
-
-    elif field == "amount":
-        amount = parse_amount(txt)
-        if amount is None:
-            await update.message.reply_text("❌ مقدار نامعتبره.")
-            return TR_EDIT_VALUE
-        data["amount"] = amount
-
-    elif field == "unit_price_irt":
-        unit_price = parse_unit_price(txt)
-        if unit_price is None:
-            await update.message.reply_text("❌ قیمت نامعتبره. فقط عدد صحیح. مثال: 75000")
-            return TR_EDIT_VALUE
-        data["unit_price_irt"] = unit_price
-
-    elif field == "deal_method":
-        method = map_method(txt)
-        if not method:
-            await update.message.reply_text("❌ یکی از گزینه‌ها رو انتخاب کن.", reply_markup=method_key)
-            return TR_EDIT_VALUE
-        data["deal_method"] = method
-
-    elif field == "description":
-        if txt == "📝 بدون توضیحات" or txt == "-":
-            txt = ""
-        data["description"] = txt
-
-    context.user_data["tr"] = data
-    context.user_data.pop("tr_edit_field", None)
-
-    await update.message.reply_text("✅ اصلاح شد.", reply_markup=ReplyKeyboardRemove())
-    await send_preview(update.message, context)
-    return TR_CONFIRM
-
-
-async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-
-    user = await get_user_by_tg(q.from_user.id)
-    if not user:
-        await q.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
-        return ConversationHandler.END
-
-    try:
-        _, action, req_id_str = q.data.split(":", 2)
-        req_id = int(req_id_str)
-    except Exception:
-        await q.message.reply_text("❌ داده نامعتبر.")
-        return ConversationHandler.END
-
-    req = await get_request_for_owner(req_id, user.id)
-    if not req:
-        await q.message.reply_text("❌ این درخواست پیدا نشد یا مال شما نیست.", reply_markup=build_main_menu_keyboard())
-        return ConversationHandler.END
-
-    if not _is_request_editable(req):
-        await q.message.reply_text(
-            "⛔️ مهلت ۱۰ دقیقه‌ای گذشته و دیگه نمی‌تونی این درخواست رو ویرایش/حذف کنی.",
-            reply_markup=build_main_menu_keyboard(),
-        )
-        return ConversationHandler.END
-
-    if action == "del":
-        deleted = await delete_request_for_owner(req_id, user.id)
-        if deleted:
-            await q.message.reply_text(f"🗑 درخواست #{req_id} حذف شد.", reply_markup=build_main_menu_keyboard())
-        else:
-            await q.message.reply_text("❌ حذف انجام نشد.", reply_markup=build_main_menu_keyboard())
-        return ConversationHandler.END
-
-    if action == "edit":
-        context.user_data["tr"] = {
-            "role": req.role,
-            "currency": req.currency,
-            "amount": req.amount,
-            "unit_price_irt": req.unit_price_irt,
-            "deal_method": req.deal_method,
-            "description": req.description or "",
-        }
-        context.user_data["editing_req_id"] = req_id
-
-        await q.message.reply_text(
-            f"✏️ ویرایش درخواست #{req_id}\nکدوم بخش رو می‌خوای اصلاح کنی؟",
-            reply_markup=build_edit_request_inline_keyboard_v2(),
-        )
-        return TR_EDIT_MENU
-
-    await q.message.reply_text("❌ عملیات نامعتبر.")
-    return ConversationHandler.END
-
-
 async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
@@ -595,7 +356,6 @@ async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     context.user_data["tr"] = {}
-    context.user_data.pop("editing_req_id", None)
 
     await update.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
     return TR_ROLE
@@ -632,7 +392,7 @@ async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["tr"]["amount"] = amount
 
-    # ✅ اینجا کیبورد مقدار باید جمع بشه
+    # ✅ کیبورد مقدار جمع بشه
     await update.message.reply_text(
         "🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):",
         reply_markup=ReplyKeyboardRemove(),
@@ -679,12 +439,10 @@ async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
 
-    if text == "❌ اصلاح":
-        await update.message.reply_text(
-            "کدوم بخش رو می‌خوای اصلاح کنی؟",
-            reply_markup=build_edit_request_inline_keyboard_v2()
-        )
-        return TR_EDIT_MENU
+    if text == "❌ لغو":
+        context.user_data.pop("tr", None)
+        await update.message.reply_text("❌ ثبت درخواست لغو شد.", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
 
     if text != "✅ تایید و ارسال":
         await update.message.reply_text("❌ یکی از گزینه‌ها رو انتخاب کن.", reply_markup=confirm_key)
@@ -700,34 +458,6 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fee = get_fee_irt()
     data["fee_irt"] = fee
 
-    editing_req_id = context.user_data.get("editing_req_id")
-    if editing_req_id:
-        req = await get_request_for_owner(editing_req_id, user.id)
-        if not req:
-            await update.message.reply_text("❌ درخواست پیدا نشد.", reply_markup=build_main_menu_keyboard())
-            context.user_data.pop("tr", None)
-            context.user_data.pop("editing_req_id", None)
-            return ConversationHandler.END
-
-        if not _is_request_editable(req):
-            await update.message.reply_text(
-                "⛔️ مهلت ۱۰ دقیقه‌ای گذشته و دیگه نمی‌تونی این درخواست رو ویرایش/حذف کنی.",
-                reply_markup=build_main_menu_keyboard()
-            )
-            context.user_data.pop("tr", None)
-            context.user_data.pop("editing_req_id", None)
-            return ConversationHandler.END
-
-        await update_request_for_owner(editing_req_id, user.id, data)
-
-        await update.message.reply_text(
-            f"✅ درخواست #{editing_req_id} ویرایش شد.",
-            reply_markup=build_main_menu_keyboard()
-        )
-        context.user_data.pop("tr", None)
-        context.user_data.pop("editing_req_id", None)
-        return ConversationHandler.END
-
     req = await create_exchange_request(
         owner=user,
         role=data["role"],
@@ -739,9 +469,6 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fee_irt=fee,
     )
 
-    await set_confirm_window(req.id)
-
-    # ✅ انتشار با سرویس جدید (ذخیره channel_message_id)
     ok = False
     try:
         ok = await sync_to_async(publish_trade_request_to_channel)(req.id)
@@ -750,21 +477,14 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if ok:
         await update.message.reply_text(
-            "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.\n"
-            "⚠️ فقط *۱۰ دقیقه* فرصت داری آگهی رو *ویرایش یا حذف* کنی.",
-            parse_mode="Markdown",
-            reply_markup=build_manage_after_submit_keyboard(req.id),
+            "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.",
+            reply_markup=build_main_menu_keyboard(),
         )
     else:
         await update.message.reply_text(
-            "⚠️ درخواستت ثبت شد ولی انتشار در کانال ناموفق بود. (لطفاً لاگ سرور رو چک کن)",
+            "⚠️ درخواستت ثبت شد ولی انتشار در کانال ناموفق بود. (لاگ سرور رو چک کن)",
             reply_markup=build_main_menu_keyboard(),
         )
-
-    await update.message.reply_text(
-        "🏠 برگشتی به منوی اصلی.",
-        reply_markup=build_main_menu_keyboard(),
-    )
 
     context.user_data.pop("tr", None)
     return ConversationHandler.END
@@ -772,7 +492,6 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("tr", None)
-    context.user_data.pop("editing_req_id", None)
     await update.message.reply_text("❌ ثبت درخواست لغو شد.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
@@ -792,8 +511,6 @@ def get_trade_request_conversation():
         entry_points=[
             CommandHandler("new_request", new_request_entry),
             MessageHandler(filters.Regex(r"^➕ثبت درخواست جدید$"), new_request_entry),
-
-            CallbackQueryHandler(req_manage_cb, pattern=r"^req_manage:(edit|del):\d+$"),
         ],
         states={
             TR_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_role)],
@@ -803,14 +520,6 @@ def get_trade_request_conversation():
             TR_METHOD: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_method)],
             TR_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_desc)],
             TR_CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_confirm)],
-
-            TR_EDIT_MENU: [
-                CallbackQueryHandler(
-                    tr_edit_menu_callback,
-                    pattern=r"^req_edit:(role|currency|amount|unit_price_irt|deal_method|description|back)$",
-                )
-            ],
-            TR_EDIT_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tr_edit_value)],
         },
         fallbacks=[CommandHandler("cancel", tr_cancel)],
         per_user=True,
