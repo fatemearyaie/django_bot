@@ -47,12 +47,18 @@ currency_key = ReplyKeyboardMarkup(
 method_key = ReplyKeyboardMarkup(
     [
         [KeyboardButton("انتقال آنی پی پال"), KeyboardButton("حواله بانکی")],
-        [KeyboardButton("مسترکارت"), KeyboardButton("سایر")],
+        [KeyboardButton("سایر")],KeyboardButton("مسترکارت"),
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
-
+amount_key = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("100"), KeyboardButton("200"), KeyboardButton("300")],
+        [KeyboardButton("400"),KeyboardButton("500"),KeyboardButton("600")],
+        [KeyboardButton("700"),KeyboardButton("800"),KeyboardButton("900")]
+    ]
+)
 confirm_key = ReplyKeyboardMarkup(
     [[ KeyboardButton("❌ اصلاح"),KeyboardButton("✅ تایید و ارسال")]],
     resize_keyboard=True,
@@ -426,11 +432,11 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "amount":
-        await q.message.reply_text("💰 مقدار ارز رو وارد کن:", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text("💰 مقدار ارز رو وارد کن", reply_markup=ReplyKeyboardRemove())
         return TR_EDIT_VALUE
 
     if action == "unit_price_irt":
-        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان رو انتخاب کن یا قیمت مد نظرت رو وارد کن", reply_markup=amount_key)
         return TR_EDIT_VALUE
 
     if action == "deal_method":
