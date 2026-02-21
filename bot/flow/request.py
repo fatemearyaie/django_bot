@@ -46,15 +46,15 @@ currency_key = ReplyKeyboardMarkup(
 
 method_key = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("پی پال"), KeyboardButton("حواله")],
-        [KeyboardButton("نقدی"), KeyboardButton("سایر")],
+        [KeyboardButton("انتقال آنی پی پال"), KeyboardButton("حواله بانکی")],
+        [KeyboardButton("مسترکارت"), KeyboardButton("سایر")],
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
 
 confirm_key = ReplyKeyboardMarkup(
-    [[KeyboardButton("✅ تایید و ارسال"), KeyboardButton("❌ اصلاح")]],
+    [[ KeyboardButton("❌ اصلاح"),KeyboardButton("✅ تایید و ارسال")]],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
@@ -187,7 +187,6 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
         f"💳 روش معامله: {r.deal_method}\n"
         f"📝 توضیحات: {r.description or '—'}\n"
-        f"💸 کارمزد: {r.fee_irt:,} تومان\n"
         f"📌 وضعیت: {_req_status_fa(r.status)}\n"
         "\n—————————————————————\n"
         f"📨 *پیشنهادها* ({len(offers)})"
@@ -400,9 +399,6 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
         f"🏷 قیمت هر واحد (تومان): {data['unit_price_irt']}\n"
         f"🔁 روش معامله: {data['deal_method']}\n"
         f"📝 توضیحات: {data['description'] or '—'}\n"
-        f"💸 کارمزد ثابت (تومان): {fee}\n"
-        f"\n📌 مجموع بدون کارمزد: {total}\n"
-        f"📌 مجموع با کارمزد: {total + Decimal(fee)}\n"
         "\n✅ از ارسال مطمئنی؟"
     )
     await message_obj.reply_text(preview, reply_markup=confirm_key)
@@ -430,7 +426,7 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "amount":
-        await q.message.reply_text("💰 مقدار ارز رو وارد کن (مثلاً 100 یا 250.5):", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text("💰 مقدار ارز رو وارد کن:", reply_markup=ReplyKeyboardRemove())
         return TR_EDIT_VALUE
 
     if action == "unit_price_irt":

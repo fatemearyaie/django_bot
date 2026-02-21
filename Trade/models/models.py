@@ -13,14 +13,13 @@ class TradeRequest(models.Model):
     class Currency(models.TextChoices):
         EUR = "EUR", "یورو"
         USD = "USD", "دلار"
-        TRY = "TRY", "لیر"
         AED = "AED", "درهم"
 
     class DealMethod(models.TextChoices):
-        PAYPAL = "paypal", "پی‌پال"
-        TRANSFER = "transfer", "حواله"
-        CASH = "cash", "نقدی"
-        CRYPTO = "crypto", "رمزارز"
+        PAYPAL = "paypal", "انتقال آنی پی‌پال"
+        TRANSFER = "transfer", "حواله بانکی"
+        MASTER = "master card", "مستر کارت"
+        OTHER = "other", "سایر"
 
     class Status(models.TextChoices):
         DRAFT = "draft", "پیش‌نویس"

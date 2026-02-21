@@ -34,6 +34,9 @@ from Trade.services.offers_service import (
 )
 from bot.flow.registration import get_or_create_user, is_profile_complete
 from bot.handlers import build_main_menu_keyboard
+from decouple import config
+
+
 
 REQUIRED_CHANNEL = "@excoinmarket"
 START_OFFER_RE = re.compile(r"^offer_(\d+)$")
@@ -146,16 +149,19 @@ def _req_title(req: TradeRequest) -> str:
     return f"درخواست #{req.id} ({role_fa} {req.currency})"
 
 
+
 def _offer_preview(d: OfferDraft) -> str:
+    fee = int(config("TRADE_REQUEST_FEE"))
+
     return (
         "🧾 پیش‌نمایش پیشنهاد شما:\n\n"
         f"📌 آگهی: {d.request_title or f'#{d.request_id}'}\n"
         f"💱 نرخ درخواست (تومان/واحد): {d.request_rate if d.request_rate is not None else '—'}\n"
         f"✅ نرخ پیشنهادی شما (تومان/واحد): {d.proposed_rate}\n"
+        f"💸 کارمزد ثابت: {fee:,} تومان\n"
         f"📝 توضیحات: {d.note if d.note else '—'}\n\n"
         "مطمئنی می‌خوای ارسال بشه؟"
     )
-
 
 async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
@@ -286,7 +292,7 @@ async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     await msg.reply_text(
         _offer_preview(d),
-        reply_markup=_rk([["✅ بله، ارسال کن"], ["❌ نه، منصرف شدم"]]),
+        reply_markup=_rk([["❌ نه، منصرف شدم"],["✅ بله، ارسال کن"]]),
     )
     return CONFIRM
 
@@ -312,7 +318,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if text != "✅ بله، ارسال کن":
         await msg.reply_text(
             "لطفاً فقط یکی از گزینه‌ها رو انتخاب کن.",
-            reply_markup=_rk([["✅ بله، ارسال کن"], ["❌ نه، منصرف شدم"]]),
+            reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
         )
         return CONFIRM
 

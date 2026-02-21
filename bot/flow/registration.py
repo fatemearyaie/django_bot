@@ -145,10 +145,6 @@ async def is_member_of_required_channel(bot, user_id: int) -> bool:
 
 # ====== Send helper (fix ReplyKeyboard in callbacks) ======
 async def send_text(update: Update, text: str, reply_markup=None):
-    """
-    مهم: در callback ها برای نمایش ReplyKeyboardMarkup باید حتماً send_message کنیم
-    نه reply_text روی پیام قبلی.
-    """
     if update.message:
         return await update.message.reply_text(text, reply_markup=reply_markup)
     if update.callback_query:
@@ -167,7 +163,6 @@ async def show_profile(update: Update, user: CustomUser):
         f"📞 شماره: {user.phone or '—'}\n\n"
         "برای ویرایش یکی از گزینه‌ها را بزن:"
     )
-    # اینجا inline هست، مشکلی نیست
     await send_text(update, text, reply_markup=build_edit_inline_keyboard())
 
 
@@ -206,7 +201,6 @@ async def start_register_callback(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     context.user_data["existing_profile"] = False
-    # مهم: در callback برای حذف/نمایش ریپلای کیبورد از send_message استفاده کن
     await update.effective_chat.send_message("لطفاً اسم خودت رو وارد کن:", reply_markup=ReplyKeyboardRemove())
     return NAME
 
@@ -349,7 +343,6 @@ async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if data == "edit_back":
         if context.user_data.get("existing_profile"):
             user = await get_or_create_user(query.from_user.id, query.from_user.username)
-            # در callback هم با send_message بفرست (پایدارتر)
             await show_profile(update, user)
             return EDIT_MENU
 
