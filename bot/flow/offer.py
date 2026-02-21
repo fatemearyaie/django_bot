@@ -7,6 +7,7 @@ from typing import Optional
 from asgiref.sync import sync_to_async
 from django.db import IntegrityError
 from django.db.models import Q
+from Trade.services.offers_service import upsert_offer_line_in_channel
 
 from telegram import (
     Update,
@@ -28,7 +29,6 @@ from telegram.ext import (
 from Users.models.models import CustomUser
 from Trade.models.models import TradeRequest, TradeOffer
 from Trade.services.offers_service import (
-    add_offer_name_to_channel,
     build_offer_manage_keyboard,
     build_offer_message,
 )
@@ -46,7 +46,23 @@ RATE, NOTE, CONFIRM = range(3)
 CB_HOME = "offerflow:home"
 CB_PROFILE = "offerflow:profile"
 
+@sync_to_async
+def _get_sender_best_offer_price(sender_id: int, request_id: int) -> int | None:
+    return (
+        TradeOffer.objects
+        .filter(sender_id=sender_id, request_id=request_id)
+        .order_by("-unit_price_irt")
+        .values_list("unit_price_irt", flat=True)
+        .first()
+    )
 
+
+@sync_to_async
+def _request_is_closed(request_id: int) -> bool:
+    return TradeRequest.objects.filter(
+        id=request_id,
+        status=TradeRequest.Status.CLOSED
+    ).exists()
 @dataclass
 class OfferDraft:
     request_id: int
@@ -345,11 +361,40 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await msg.reply_text("❌ این درخواست دیگر فعال نیست.", reply_markup=_main_menu_kb())
         return ConversationHandler.END
 
+    # --- NEW: جلوگیری از پیشنهاد روی درخواست بسته ---
+    if getattr(req, "status", None) == TradeRequest.Status.CLOSED:
+        context.user_data.pop("offer_draft", None)
+        await msg.reply_text(
+            "⛔️ این درخواست بسته شده و امکان ثبت پیشنهاد جدید نیست.",
+            reply_markup=_main_menu_kb(),
+        )
+        return ConversationHandler.END
+
+    # --- NEW: اجازه چند پیشنهاد، فقط اگر جدید > بیشترین قبلی خودش ---
+    best_prev = await _get_sender_best_offer_price(sender.id, req.id)
+    if best_prev is not None and int(d.proposed_rate) <= int(best_prev):
+        await msg.reply_text(
+            f"❌ شما قبلاً برای این درخواست پیشنهاد {best_prev:,} تومان/واحد ثبت کرده‌اید.\n"
+            "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.\n\n"
+            "اگر می‌خواهی نرخ را تغییر بدهی، دوباره ارسال کن و عدد بالاتر وارد کن.",
+            parse_mode="Markdown",
+            reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
+        )
+        return CONFIRM
+
     try:
-        from Trade.services.offers_service import upsert_offer_line_in_channel
+        offer = await _create_offer(
+            req=req,
+            sender=sender,
+            unit_price_irt=int(d.proposed_rate),
+            message=d.note or "",
+        )
+    except Exception:
+        context.user_data.pop("offer_draft", None)
+        await msg.reply_text("❌ خطا در ثبت پیشنهاد. لطفاً دوباره تلاش کن.", reply_markup=_main_menu_kb())
+        return ConversationHandler.END
 
-        offer = await _create_offer(req=req, sender=sender, unit_price_irt=int(d.proposed_rate), message=d.note or "")
-
+    try:
         offer_name = sender.name or sender.username or ""
         await sync_to_async(upsert_offer_line_in_channel)(
             req.id,
@@ -357,14 +402,8 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             offer_name,
             "PENDING"
         )
-
-    except IntegrityError:
-        context.user_data.pop("offer_draft", None)
-        await msg.reply_text(
-            "❌ شما قبلاً برای این درخواست یک پیشنهاد ثبت کرده‌اید.",
-            reply_markup=_main_menu_kb(),
-        )
-        return ConversationHandler.END
+    except Exception:
+        pass
 
     try:
         if req.owner and getattr(req.owner, "telegram_id", None):
@@ -385,7 +424,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         reply_markup=ReplyKeyboardRemove(),
     )
     return ConversationHandler.END
-
 
 async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop("offer_draft", None)

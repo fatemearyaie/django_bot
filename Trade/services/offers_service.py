@@ -9,7 +9,7 @@ from Trade.models.models import TradeRequest
 BOT_USERNAME = "excoinmarket_bot"
 
 STATUS_EMOJI = {
-    "PENDING": "🟡",
+    "PENDING": "📥",
     "ACCEPTED": "✅",
     "REJECTED": "❌",
 }
@@ -52,18 +52,11 @@ def build_offer_message(offer):
 
 
 def _render_offer_line(offer_id: int, offer_name: str, status: str) -> str:
-    emoji = STATUS_EMOJI.get(status, "🟡")
-    # مهم: (#{offer_id}) برای اینه که بعداً دقیق همون لاین رو پیدا کنیم
-    return f"{emoji} {offer_name} (#{offer_id})"
+    emoji = STATUS_EMOJI.get(status, "📥")
+    return f"{emoji} {offer_name}"
 
 
 def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, status: str = "PENDING") -> bool:
-    """
-    اگر marker وجود داشت:
-      - اگر لاین (#{offer_id}) بود -> آپدیت
-      - اگر نبود -> اضافه
-    اگر marker نبود -> marker + لاین ساخته میشه
-    """
     token = os.environ.get("API_TOKEN")
     if not token:
         print("API_TOKEN not set")
@@ -128,23 +121,12 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
         return False
 
 
-# برای سازگاری با اسم قبلی‌ات:
 def add_offer_name_to_channel(req_id: int, offer_name: str, offer_id: int | None = None) -> bool:
-    """
-    قبلاً فقط اسم می‌گرفت.
-    الان بهتره offer_id هم بدی.
-    اگر offer_id None بود، فقط مثل قدیم اضافه می‌کنه (ولی برای آپدیت وضعیت لازم داری offer_id داشته باشی).
-    """
     if offer_id is None:
-        # fallback قدیمی: یک لاین pending بدون id قابل پیگیری دقیق نیست
-        # پیشنهاد: از این حالت استفاده نکن
         return upsert_offer_line_in_channel(req_id=req_id, offer_id=0, offer_name=offer_name, status="PENDING")
 
     return upsert_offer_line_in_channel(req_id=req_id, offer_id=offer_id, offer_name=offer_name, status="PENDING")
 
 
 def set_offer_status_in_channel(req_id: int, offer_id: int, offer_name: str, status: str) -> bool:
-    """
-    status یکی از: PENDING / ACCEPTED / REJECTED
-    """
     return upsert_offer_line_in_channel(req_id=req_id, offer_id=offer_id, offer_name=offer_name, status=status)

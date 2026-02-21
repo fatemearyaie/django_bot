@@ -98,9 +98,7 @@ class TradeOffer(models.Model):
         ]
 
 
-        constraints = [
-        models.UniqueConstraint(fields=["request", "sender"], name="uniq_offer_per_sender_per_request")
-        ]
+        constraints = []
 
     def __str__(self):
         price = self.unit_price_irt if self.unit_price_irt is not None else "?"
