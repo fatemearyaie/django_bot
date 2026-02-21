@@ -3,10 +3,11 @@ from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
 from Trade.services.offers_service import set_offer_status_in_channel
-
+from decouple import config
 from Trade.models.models import TradeOffer
 from Trade.services.offers_service import build_offer_after_accept_keyboard
 
+FEE = config("TRADE_REQUEST_FEE")
 
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
@@ -65,6 +66,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💱 نرخ درخواست (تومان/واحد): {request.rate if request.rate is not None else '—'}\n"
             f"✅ نرخ پیشنهادی شما (تومان/واحد): {offer.proposed_rate}\n"
             f"📝 توضیحات: {offer.note if offer.note else '—'}\n"
+            f"{FEE}"
         )
 
         await context.bot.send_message(
