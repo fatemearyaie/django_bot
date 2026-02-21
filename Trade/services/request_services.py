@@ -22,7 +22,6 @@ def build_channel_post_text(req: TradeRequest) -> str:
         f"💳 روش معامله: {req.deal_method}\n"
         f"📝 توضیحات: {req.description or '—'}\n\n"
         "\n——————————————\n\n"
-        "👥 پیشنهاددهنده‌ها: —\n"
 
     )
 
