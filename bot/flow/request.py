@@ -23,9 +23,7 @@ from asgiref.sync import sync_to_async
 from Users.models import CustomUser
 from Trade.models.models import TradeRequest, TradeOffer
 
-# ✅ سرویس جدید انتشار کانال (همون فایلی که خودت دادی)
-# مسیرش رو با پروژه‌ات هماهنگ کن:
-from Trade.services.channel_publish import publish_trade_request_to_channel
+from Trade.services.request_services import publish_trade_request_to_channel
 
 
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM = range(7)
@@ -39,8 +37,7 @@ side_key = ReplyKeyboardMarkup(
 currency_key = ReplyKeyboardMarkup(
     [
         [KeyboardButton("EUR"), KeyboardButton("USD")],
-        [KeyboardButton("GBP"), KeyboardButton("AED")],
-        [KeyboardButton("TRY"), KeyboardButton("CAD")],
+        [KeyboardButton("AED")],
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
