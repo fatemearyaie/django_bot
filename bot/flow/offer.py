@@ -369,14 +369,14 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
         return ConversationHandler.END
 
-    last_prev = await _get_sender_last_offer_price(sender.id, req.id)
-
-    if last_prev is not None and int(d.proposed_rate) <= int(last_prev):
+    best_prev = await _get_sender_best_offer_price(sender.id, req.id)
+    if best_prev is not None and int(d.proposed_rate) <= int(best_prev):
         await msg.reply_text(
-            f"❌ آخرین پیشنهاد شما برای این درخواست {int(last_prev):,} تومان/واحد بوده.\n"
-            "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.",
+            f"❌ شما قبلاً برای این درخواست پیشنهاد {best_prev:,} تومان/واحد ثبت کرده‌اید.\n"
+            "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.\n\n"
+            "اگر می‌خواهی نرخ را تغییر بدهی، دوباره ارسال کن و عدد بالاتر وارد کن.",
             parse_mode="Markdown",
-            reply_markup=_rk([["❌ نه، منصرف شدم"]]),
+            reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
         )
         return CONFIRM
 
