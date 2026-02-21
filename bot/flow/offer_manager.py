@@ -54,9 +54,11 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
+
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
-            text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد."
+            text="✅ پیشنهاد شما تایید شد."
+                 f"\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد. {offer.request.id}"
         )
     except Exception:
         pass
