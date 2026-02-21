@@ -76,7 +76,7 @@ def build_application(token: str):
 
     # about us
     application.add_handler(
-        MessageHandler(filters.TEXT & filters.Regex("^درباره ما$"), about_handler)
+        MessageHandler(filters.TEXT & filters.Regex("^⁉️درباره ما$"), about_handler)
     )
 
     application.add_handler(build_registration_conversation())
