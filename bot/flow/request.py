@@ -91,13 +91,7 @@ def build_edit_request_inline_keyboard_v2():
     )
 
 
-def build_manage_after_submit_keyboard(req_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [[
-            InlineKeyboardButton("✏️ ویرایش", callback_data=f"req_manage:edit:{req_id}"),
-            InlineKeyboardButton("🗑 حذف", callback_data=f"req_manage:del:{req_id}"),
-        ]]
-    )
+
 
 
 MYREQ_PAGE_SIZE = 1
@@ -749,10 +743,8 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if ok:
         await update.message.reply_text(
-            "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.\n"
-            "⚠️ فقط *۱۰ دقیقه* فرصت داری آگهی رو *ویرایش یا حذف* کنی.",
+            "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.\n",
             parse_mode="Markdown",
-            reply_markup=build_manage_after_submit_keyboard(req.id),
         )
     else:
         await update.message.reply_text(
