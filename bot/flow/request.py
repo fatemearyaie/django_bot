@@ -47,7 +47,7 @@ currency_key = ReplyKeyboardMarkup(
 method_key = ReplyKeyboardMarkup(
     [
         [KeyboardButton("انتقال آنی پی پال"), KeyboardButton("حواله بانکی")],
-        [KeyboardButton("سایر")],KeyboardButton("مسترکارت"),
+        [KeyboardButton("سایر"),KeyboardButton("مسترکارت")]
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
@@ -57,7 +57,9 @@ amount_key = ReplyKeyboardMarkup(
         [KeyboardButton("100"), KeyboardButton("200"), KeyboardButton("300")],
         [KeyboardButton("400"),KeyboardButton("500"),KeyboardButton("600")],
         [KeyboardButton("700"),KeyboardButton("800"),KeyboardButton("900")]
-    ]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
 )
 confirm_key = ReplyKeyboardMarkup(
     [[ KeyboardButton("❌ اصلاح"),KeyboardButton("✅ تایید و ارسال")]],
