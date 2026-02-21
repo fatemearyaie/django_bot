@@ -269,7 +269,7 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             rows = [[f"✅ نرخ درخواست را تایید می‌کنم ({d.request_rate})"]] if d.request_rate is not None else []
             await msg.reply_text(
                 "❌ نرخ نامعتبره.\n"
-                "لطفاً فقط عدد وارد کن یا از دکمه تایید نرخ استفاده کن.",
+                "لطفاً فقط عدد وارد کن (مثلاً 65000) یا از دکمه تایید نرخ استفاده کن.",
                 reply_markup=_rk(rows) if rows else ReplyKeyboardRemove(),
             )
             return RATE
@@ -307,7 +307,7 @@ async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     await msg.reply_text(
         _offer_preview(d),
-        reply_markup=_rk([["❌ نه، منصرف شدم"],["✅ بله، ارسال کن"]]),
+        reply_markup=_rk([["❌ نه، منصرف شدم"]]),
     )
     return CONFIRM
 
@@ -369,7 +369,8 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
         return ConversationHandler.END
 
-    best_prev = await _get_sender_best_offer_price(sender.id, req.id)
+    # --- NEW: اجازه چند پیشنهاد، فقط اگر جدید > بیشترین قبلی خودش ---
+    best_prev = await _get_sender_last_offer_price(sender.id, req.id)
     if best_prev is not None and int(d.proposed_rate) <= int(best_prev):
         await msg.reply_text(
             f"❌ شما قبلاً برای این درخواست پیشنهاد {best_prev:,} تومان/واحد ثبت کرده‌اید.\n"
