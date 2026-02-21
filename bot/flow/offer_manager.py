@@ -3,11 +3,10 @@ from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
 from Trade.services.offers_service import set_offer_status_in_channel
-from decouple import config
+
 from Trade.models.models import TradeOffer
 from Trade.services.offers_service import build_offer_after_accept_keyboard
 
-FEE = config("TRADE_REQUEST_FEE")
 
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
@@ -55,25 +54,10 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        request = offer.request
-
-        preview_text = (
-            "✅ پیشنهاد شما تایید شد.\n"
-            "برای اتصال به طرف مقابل، لطفاً پیش‌نمایش زیر را برای ادمین رسمی ارسال کنید.\n\n"
-
-            "🧾 پیش‌نمایش پیشنهاد شما:\n\n"
-            f"📌 آگهی: {request.title or f'#{request.id}'}\n"
-            f"💱 نرخ درخواست (تومان/واحد): {request.rate if request.rate is not None else '—'}\n"
-            f"✅ نرخ پیشنهادی شما (تومان/واحد): {offer.proposed_rate}\n"
-            f"📝 توضیحات: {offer.note if offer.note else '—'}\n"
-            f"{FEE}"
-        )
-
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
-            text=preview_text
+            text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد."
         )
-
     except Exception:
         pass
 
