@@ -22,7 +22,7 @@ def build_channel_post_text(req: TradeRequest) -> str:
         f"💰 قیمت هر واحد (تومان): {req.unit_price_irt}\n"
         f"💳 روش معامله: {req.deal_method}\n"
         f"📝 توضیحات: {req.description or '—'}\n"
-        "\n——————————————————\n\n"
+        "\n——————————————\n\n"
     )
 
 
@@ -74,7 +74,6 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
         except Exception as e:
             print("TELEGRAM owner notify ERROR:", type(e), repr(e))
 
-        print("✅ Channel published:", msg.chat.id, msg.message_id)
         return True
 
     except Exception as e:

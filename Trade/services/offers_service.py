@@ -68,7 +68,7 @@ def add_offer_name_to_channel(req_id: int, offer_name: str) -> bool:
         existing = [x.strip().lstrip("•").strip() for x in tail.strip().splitlines() if x.strip()]
         if offer_name not in existing:
             existing.append(offer_name)
-        lines = "\n".join([f"• {n}" for n in existing])
+        lines = "\n".join([f"➕ {n}" for n in existing])
         new_text = head.rstrip() + "\n\n" + marker + "\n" + lines + "\n"
     else:
         new_text = base_text.rstrip() + "\n\n" + marker + "\n" + f"• {offer_name}\n"

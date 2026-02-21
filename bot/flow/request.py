@@ -25,6 +25,7 @@ from django.utils import timezone
 from Users.models import CustomUser
 from Trade.models.models import TradeRequest, TradeOffer
 
+CHANNEL = "@excoinmarket"
 
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
 
@@ -47,22 +48,24 @@ currency_key = ReplyKeyboardMarkup(
 method_key = ReplyKeyboardMarkup(
     [
         [KeyboardButton("انتقال آنی پی پال"), KeyboardButton("حواله بانکی")],
-        [KeyboardButton("سایر"),KeyboardButton("مسترکارت")]
+        [KeyboardButton("سایر"), KeyboardButton("مسترکارت")]
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
+
 amount_key = ReplyKeyboardMarkup(
     [
         [KeyboardButton("100"), KeyboardButton("200"), KeyboardButton("300")],
-        [KeyboardButton("400"),KeyboardButton("500"),KeyboardButton("600")],
-        [KeyboardButton("700"),KeyboardButton("800"),KeyboardButton("900")]
+        [KeyboardButton("400"), KeyboardButton("500"), KeyboardButton("600")],
+        [KeyboardButton("700"), KeyboardButton("800"), KeyboardButton("900")]
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
+
 confirm_key = ReplyKeyboardMarkup(
-    [[ KeyboardButton("❌ اصلاح"),KeyboardButton("✅ تایید و ارسال")]],
+    [[KeyboardButton("❌ اصلاح"), KeyboardButton("✅ تایید و ارسال")]],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
@@ -113,7 +116,7 @@ def _req_status_fa(status: str) -> str:
     mapping = {
         TradeRequest.Status.DRAFT: "پیش‌نویس",
         TradeRequest.Status.PENDING_ADMIN: "در انتظار تایید ادمین",
-        TradeRequest.Status.APPROVED: "✅ تایید شده",
+        TradeRequest.Status.APPROVED: "✅ فعال",
         TradeRequest.Status.CLOSED: "⛔️ بسته شده",
     }
     return mapping.get(status, status)
@@ -183,13 +186,12 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
 
     items, total = await fetch_user_requests(user.id, page)
     r = items[0]
-
     offers = await fetch_offers_for_request(r.id)
 
     text = (
         f"📥 *درخواست‌های من* (صفحه {page+1} از {max_page+1})\n\n"
         "🧾 *درخواست*\n"
-        f"🆔 #{r.id}\n"
+        f"*🆔 #{r.id}*\n\n"
         f"👤 نقش: {_role_fa(r.role)} | 💱 ارز: {r.currency}\n"
         f"💰 مقدار: {r.amount}\n"
         f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
@@ -207,7 +209,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         for o in shown:
             sender_name = (o.sender.name or o.sender.username or "—")
             text += (
-                f"\n\n— پیشنهاد #{o.id}"
+                f"\n\n— *پیشنهاد* #{o.id}"
                 f"\n👤 {sender_name}"
                 f"\n💰 {o.unit_price_irt:,} تومان"
                 f"\n📌 وضعیت: {_offer_status_fa(o.status)}"
@@ -239,7 +241,7 @@ async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
     if not user:
-        await update.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
+        await update.message.reply_text("❌ اول باید از بخش 👤پروفایل ثبت‌نام کنی.")
         return
     await send_my_requests_list(update.message, user, page=0, edit=False)
 
@@ -254,7 +256,7 @@ async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     user = await get_user_by_tg(q.from_user.id)
     if not user:
-        await q.message.reply_text("❌ اول باید ثبت‌نام کنی (از بخش 👤پروفایل).")
+        await q.message.reply_text("❌ اول باید از بخش 👤پروفایل ثبت‌نام کنی.")
         return
 
     try:
@@ -293,7 +295,7 @@ def get_request_for_owner(req_id: int, owner_id: int):
 def _is_request_editable(req: TradeRequest) -> bool:
     if not req:
         return False
-    if req.status != TradeRequest.Status.PENDING_ADMIN:
+    if req.status == TradeRequest.Status.CLOSED:
         return False
     if not req.editable_until:
         return False
@@ -302,15 +304,28 @@ def _is_request_editable(req: TradeRequest) -> bool:
 
 @sync_to_async
 def delete_request_for_owner(req_id: int, owner_id: int):
-    qs = TradeRequest.objects.filter(id=req_id, owner_id=owner_id, status=TradeRequest.Status.PENDING_ADMIN)
-    deleted_count, _ = qs.delete()
+    req = TradeRequest.objects.filter(id=req_id, owner_id=owner_id).first()
+    if not req:
+        return 0
+    if req.status == TradeRequest.Status.CLOSED:
+        return 0
+    if not req.editable_until or timezone.now() > req.editable_until:
+        return 0
+    deleted_count, _ = TradeRequest.objects.filter(id=req_id, owner_id=owner_id).delete()
     return deleted_count
 
 
 @sync_to_async
 def update_request_for_owner(req_id: int, owner_id: int, data: dict):
-    qs = TradeRequest.objects.filter(id=req_id, owner_id=owner_id, status=TradeRequest.Status.PENDING_ADMIN)
-    return qs.update(
+    req = TradeRequest.objects.filter(id=req_id, owner_id=owner_id).first()
+    if not req:
+        return 0
+    if req.status == TradeRequest.Status.CLOSED:
+        return 0
+    if not req.editable_until or timezone.now() > req.editable_until:
+        return 0
+
+    return TradeRequest.objects.filter(id=req_id, owner_id=owner_id).update(
         role=data["role"],
         currency=data["currency"],
         amount=data["amount"],
@@ -333,6 +348,7 @@ def create_exchange_request(
     description: str,
     fee_irt: int,
 ):
+    # ✅ مستقیم فعال (بدون تایید ادمین)
     return TradeRequest.objects.create(
         owner=owner,
         role=role,
@@ -342,7 +358,7 @@ def create_exchange_request(
         fee_irt=fee_irt,
         deal_method=deal_method,
         description=description,
-        status=TradeRequest.Status.PENDING_ADMIN,
+        status=TradeRequest.Status.APPROVED,
     )
 
 
@@ -357,11 +373,11 @@ def map_role(text: str) -> str | None:
 
 def map_method(text: str) -> str | None:
     t = (text or "").strip()
-    if t == "پی پال":
+    if t == "انتقال آنی پی پال":
         return TradeRequest.DealMethod.PAYPAL
-    if t == "حواله":
+    if t == "حواله بانکی":
         return TradeRequest.DealMethod.TRANSFER
-    if t == "مستر کارت":
+    if t == "مسترکارت":
         return TradeRequest.DealMethod.MASTER
     if t == "سایر":
         return TradeRequest.DealMethod.OTHER
@@ -393,11 +409,36 @@ def get_fee_irt() -> int:
     return int(config("TRADE_REQUEST_FEE"))
 
 
+def build_request_channel_message(r: TradeRequest) -> str:
+    return (
+        "📣 *آگهی جدید*\n\n"
+        f"🆔 *#{r.id}*\n"
+        f"👤 نقش: {_role_fa(r.role)}\n"
+        f"💱 ارز: {r.currency}\n"
+        f"💰 مقدار: {r.amount}\n"
+        f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
+        f"💳 روش معامله: {r.deal_method}\n"
+        f"📝 توضیحات: {r.description or '—'}\n"
+    )
+
+
+async def send_request_to_channel(context: ContextTypes.DEFAULT_TYPE, req: TradeRequest):
+    bot_username = context.bot.username
+    url = f"https://t.me/{bot_username}?start=offer_{req.id}"
+
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("💬 پیشنهاد بده", url=url)]])
+
+    await context.bot.send_message(
+        chat_id=CHANNEL,
+        text=build_request_channel_message(req),
+        parse_mode="Markdown",
+        reply_markup=kb,
+        disable_web_page_preview=True,
+    )
+
+
 async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get("tr", {})
-    fee = get_fee_irt()
-
-    total = data["amount"] * Decimal(data["unit_price_irt"])
 
     preview = (
         "🧾 پیش‌نمایش درخواست شما:\n\n"
@@ -577,7 +618,7 @@ async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not is_profile_ok(user):
         await update.message.reply_text(
-            "❌ برای ثبت درخواست باید اول ثبت‌نامت کامل باشه و ادمین تاییدت کرده باشه.\n"
+            "❌ برای ثبت درخواست باید اول ثبت‌نامت کامل باشه.\n"
             "لطفاً از بخش 👤پروفایل ثبت‌نام رو کامل کن."
         )
         return ConversationHandler.END
@@ -678,7 +719,7 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
     if not is_profile_ok(user):
-        await update.message.reply_text("❌ پروفایل کامل/تایید نشده. نمی‌تونم درخواست ثبت کنم.")
+        await update.message.reply_text("❌ پروفایل کامل نیست. نمی‌تونم درخواست ثبت کنم.")
         return ConversationHandler.END
 
     data = context.user_data.get("tr", {})
@@ -706,7 +747,7 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update_request_for_owner(editing_req_id, user.id, data)
 
         await update.message.reply_text(
-            f"✅ درخواست #{editing_req_id} ویرایش شد و همچنان در انتظار تایید ادمین است.",
+            f"✅ درخواست #{editing_req_id} ویرایش شد.",
             reply_markup=build_main_menu_keyboard()
         )
         context.user_data.pop("tr", None)
@@ -726,9 +767,15 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await set_confirm_window(req.id)
 
+    # ✅ ارسال مستقیم به کانال (بدون تایید ادمین)
+    try:
+        await send_request_to_channel(context, req)
+    except Exception:
+        pass
+
     await update.message.reply_text(
-        "✅ اوکی! درخواستت ثبت شد و رفت برای تایید ادمین.\n"
-        "⚠️ حواست باشه فقط *۱۰ دقیقه* فرصت داری این آگهی رو *ویرایش یا حذف* کنی.",
+        "✅ درخواستت ثبت شد و مستقیم توی کانال منتشر شد.\n"
+        "⚠️ فقط *۱۰ دقیقه* فرصت داری آگهی رو *ویرایش یا حذف* کنی.",
         parse_mode="Markdown",
         reply_markup=build_manage_after_submit_keyboard(req.id),
     )
