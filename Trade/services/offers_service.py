@@ -55,7 +55,6 @@ def build_offer_message(offer):
         f"📩 *پیشنهاد جدید*  |  🆔 پیشنهاد: #{offer.id}\n\n"
         f"💰 نرخ پیشنهادی: {offer.unit_price_irt:,} تومان\n"
         f"📝 توضیحات: {offer.message or '—'}\n\n"
-        f"👤 {user.name or user.username} | عضو از {joined}"
     )
 
 
@@ -67,31 +66,20 @@ def _emoji_for(status: str) -> str:
 
 
 def _render_offer_line(offer_id: int, offer_name: str, status: str) -> str:
-    """
-    فرمت پایدار (برای اینکه بعداً دقیق update کنیم):
-    ✅ [123] Ali
-    """
     return f"{_emoji_for(status)} [{offer_id}] {offer_name}".strip()
 
 
 def _normalize_line_text(s: str) -> str:
-    """
-    برای match با اسم در دیتاهای قدیمی:
-    ایموجی‌ها، [id] و فاصله‌های اضافی حذف میشن
-    """
     if not s:
         return ""
 
     s = s.strip()
 
-    # remove our emojis
     for emo in STATUS_EMOJI.values():
         s = s.replace(emo, "")
 
-    # remove [123]
     s = re.sub(r"\[\s*\d+\s*\]", "", s)
 
-    # collapse spaces
     s = " ".join(s.split()).strip()
     return s
 
@@ -107,11 +95,6 @@ def _extract_offer_id(line: str) -> int | None:
 
 
 def _split_base_text(base_text: str) -> tuple[str, list[str]]:
-    """
-    خروجی:
-      head (متن قبل از marker)
-      lines (لیست لاین‌های پیشنهاددهنده‌ها)
-    """
     if MARKER not in base_text:
         return base_text.rstrip(), []
 
@@ -147,7 +130,6 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
 
     head, lines = _split_base_text(base_text)
 
-    # 1) اول با offer_id دقیق پیدا کن
     found = False
     for i, ln in enumerate(lines):
         existing_id = _extract_offer_id(ln)
@@ -156,22 +138,18 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
             found = True
             break
 
-    # 2) اگر پیدا نشد، fallback با اسم (برای پیام‌های قدیمی که id نداشتند)
     if not found:
         name_norm = _normalize_line_text(offer_name)
         if name_norm:
             for i, ln in enumerate(lines):
-                # اگر خط قبلی id ندارد و اسمش یکی است، همان را update کن
                 if _extract_offer_id(ln) is None and _normalize_line_text(ln) == name_norm:
                     lines[i] = new_line
                     found = True
                     break
 
-    # 3) اگر باز هم نبود، اضافه کن
     if not found:
         lines.append(new_line)
 
-    # 4) ضد تکرار: اگر دو خط با یک offer_id داریم، فقط آخرین را نگه دار
     deduped = []
     seen_ids = set()
     for ln in reversed(lines):
@@ -185,7 +163,6 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
         deduped.append(ln)
     lines = list(reversed(deduped))
 
-    # ساخت متن نهایی
     if lines:
         new_text = head + "\n\n" + MARKER + "\n" + "\n".join(lines) + "\n"
     else:
@@ -217,7 +194,6 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
 # Wrappers
 # -----------------------
 def add_offer_name_to_channel(req_id: int, offer_name: str, offer_id: int) -> bool:
-    # از این به بعد offer_id باید اجباری باشه
     return upsert_offer_line_in_channel(
         req_id=req_id,
         offer_id=offer_id,

@@ -58,7 +58,8 @@ amount_key = ReplyKeyboardMarkup(
     [
         [KeyboardButton("100"), KeyboardButton("200"), KeyboardButton("300")],
         [KeyboardButton("400"), KeyboardButton("500"), KeyboardButton("600")],
-        [KeyboardButton("700"), KeyboardButton("800"), KeyboardButton("900")]
+        [KeyboardButton("700"), KeyboardButton("800"), KeyboardButton("900")],
+        [KeyboardButton("1000")]
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
@@ -342,7 +343,6 @@ def create_exchange_request(
     description: str,
     fee_irt: int,
 ):
-    # ✅ مستقیم فعال (بدون تایید ادمین)
     return TradeRequest.objects.create(
         owner=owner,
         role=role,
@@ -407,13 +407,13 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get("tr", {})
 
     preview = (
-        "🧾 پیش‌نمایش درخواست شما:\n\n"
+        "🧾 *پیش‌نمایش درخواست شما*\n\n"
         f"👤 نقش: {'خریدار' if data['role'] == TradeRequest.Role.BUYER else 'فروشنده'}\n"
         f"💱 ارز: {data['currency']}\n"
         f"💰 مقدار: {data['amount']}\n"
         f"🏷 قیمت هر واحد (تومان): {data['unit_price_irt']}\n"
         f"🔁 روش معامله: {data['deal_method']}\n"
-        f"📝 توضیحات: {data['description'] or '—'}\n"
+        f"📝 توضیحات: {data['description'] or '—'}\n\n"
         "\n✅ از ارسال مطمئنی؟"
     )
     await message_obj.reply_text(preview, reply_markup=confirm_key)
@@ -625,7 +625,6 @@ async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["tr"]["amount"] = amount
 
-    # ✅ اینجا کیبورد مقدار باید جمع بشه
     await update.message.reply_text(
         "🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):",
         reply_markup=ReplyKeyboardRemove(),

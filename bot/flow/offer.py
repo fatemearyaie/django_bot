@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 from asgiref.sync import sync_to_async
-from django.db import IntegrityError
 from django.db.models import Q
 from Trade.services.offers_service import upsert_offer_line_in_channel
 
@@ -230,7 +229,7 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         request_title=_req_title(req),
     )
 
-    rows = [[f"✅ نرخ درخواست را تایید می‌کنم ({req_rate})"]] if req_rate is not None else []
+    rows = [[f"✅ نرخ درخواست فروشنده/خریدار را تایید می‌کنم ({req_rate})"]] if req_rate is not None else []
 
     await msg.reply_text(
         f"داری برای «{_req_title(req)}» پیشنهاد می‌دی.\n\n"
@@ -266,10 +265,10 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 raise ValueError()
             d.proposed_rate = int(round(rate))
         except Exception:
-            rows = [[f"✅ نرخ درخواست را تایید می‌کنم ({d.request_rate})"]] if d.request_rate is not None else []
+            rows = [[f"✅ نرخ درخواست فروشنده/خریدار را تایید می‌کنم ({d.request_rate})"]] if d.request_rate is not None else []
             await msg.reply_text(
                 "❌ نرخ نامعتبره.\n"
-                "لطفاً فقط عدد وارد کن (مثلاً 65000) یا از دکمه تایید نرخ استفاده کن.",
+                "لطفاً فقط عدد وارد کن یا از دکمه تایید نرخ استفاده کن.",
                 reply_markup=_rk(rows) if rows else ReplyKeyboardRemove(),
             )
             return RATE
@@ -277,7 +276,7 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["offer_draft"] = d
 
     await msg.reply_text(
-        "اگر توضیحی داری اضافه کن؛ یا بزن «بدون توضیحات».",
+        "اگر توضیحی داری اضافه کن؛ یا دکمه بدون توضیحات رو بزن",
         reply_markup=_rk([["📝 بدون توضیحات"]]),
     )
     return NOTE
@@ -360,7 +359,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await msg.reply_text("❌ این درخواست دیگر فعال نیست.", reply_markup=_main_menu_kb())
         return ConversationHandler.END
 
-    # --- NEW: جلوگیری از پیشنهاد روی درخواست بسته ---
     if getattr(req, "status", None) == TradeRequest.Status.CLOSED:
         context.user_data.pop("offer_draft", None)
         await msg.reply_text(
@@ -369,13 +367,12 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
         return ConversationHandler.END
 
-    # --- NEW: اجازه چند پیشنهاد، فقط اگر جدید > بیشترین قبلی خودش ---
     best_prev = await _get_sender_last_offer_price(sender.id, req.id)
     if best_prev is not None and int(d.proposed_rate) <= int(best_prev):
         await msg.reply_text(
             f"❌ شما قبلاً برای این درخواست پیشنهاد {best_prev:,} تومان/واحد ثبت کرده‌اید.\n"
             "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.\n\n"
-            "اگر می‌خواهی نرخ را تغییر بدهی، دوباره ارسال کن و عدد بالاتر وارد کن.",
+            "اگر می‌خواهی نرخ را تغییر بدهی، دوباره روی درخواست کلیک کن و عدد بالاتر وارد کن.",
             parse_mode="Markdown",
             reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
         )
