@@ -25,9 +25,7 @@ from django.utils import timezone
 from Users.models import CustomUser
 from Trade.models.models import TradeRequest, TradeOffer
 
-# ✅ سرویس جدید انتشار کانال (همون فایلی که خودت دادی)
-# مسیرش رو با پروژه‌ات هماهنگ کن:
-from Trade.services.channel_publish import publish_trade_request_to_channel
+from Trade.services.request_services import publish_trade_request_to_channel
 
 
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
