@@ -54,10 +54,24 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
+        request = offer.request
+
+        preview_text = (
+            "✅ پیشنهاد شما تایید شد.\n"
+            "برای اتصال به طرف مقابل، لطفاً پیش‌نمایش زیر را برای ادمین رسمی ارسال کنید.\n\n"
+
+            "🧾 پیش‌نمایش پیشنهاد شما:\n\n"
+            f"📌 آگهی: {request.title or f'#{request.id}'}\n"
+            f"💱 نرخ درخواست (تومان/واحد): {request.rate if request.rate is not None else '—'}\n"
+            f"✅ نرخ پیشنهادی شما (تومان/واحد): {offer.proposed_rate}\n"
+            f"📝 توضیحات: {offer.note if offer.note else '—'}\n"
+        )
+
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
-            text="✅ پیشنهاد شما تایید شد.\nبه‌زودی درخواست‌دهنده با شما تماس می‌گیرد."
+            text=preview_text
         )
+
     except Exception:
         pass
 
