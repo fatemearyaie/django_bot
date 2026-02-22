@@ -20,7 +20,7 @@ def build_channel_post_text(req: TradeRequest) -> str:
 
     return (
         "📌 *درخواست جدید*\n\n"
-        f"🆔 شناسه: `{req.id}`\n"
+        f" 🆔شناسه:{req.id}\n"
         f"👤 نقش: {role}\n"
         f"💱 ارز: {req.currency}\n"
         f"💰 مقدار: {amount_text}\n"
