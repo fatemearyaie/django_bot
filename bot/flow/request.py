@@ -181,7 +181,6 @@ def build_myreq_list_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton("🏠 منوی اصلی", callback_data="myreq_home")])
     return InlineKeyboardMarkup(rows)
 
-
 async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_requests(user.id, page)
 
@@ -200,17 +199,16 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
     r = items[0]
     offers = await fetch_offers_for_request(r.id)
 
-    # ✅ لینک‌دار کردن آیدی درخواست (بعد از اینکه r مشخص شد)
     link = build_channel_link(r)
     if link:
-        req_id_text = f"[#{r.id}]({link})"
+        req_id_text = f'<a href="{link}">#{r.id}</a>'
     else:
         req_id_text = f"#{r.id}"
 
     text = (
-        f"📥 *درخواست‌های من* (صفحه {page+1} از {max_page+1})\n\n"
-        "🧾 *درخواست*\n"
-        f"*🆔 {req_id_text}*\n\n"
+        f"📥 <b>درخواست‌های من</b> (صفحه {page+1} از {max_page+1})\n\n"
+        "🧾 <b>درخواست</b>\n"
+        f"🆔 {req_id_text}\n\n"
         f"👤 نقش: {_role_fa(r.role)} | 💱 ارز: {r.currency}\n"
         f"💰 مقدار: {r.amount}\n"
         f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
@@ -218,7 +216,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         f"📝 توضیحات: {r.description or '—'}\n"
         f"📌 وضعیت: {_req_status_fa(r.status)}\n"
         "\n—————————————————————\n"
-        f"📨 *پیشنهادها* ({len(offers)})"
+        f"📨 <b>پیشنهادها</b> ({len(offers)})"
     )
 
     if not offers:
@@ -227,8 +225,9 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         shown = offers[:25]
         for o in shown:
             sender_name = (o.sender.name or o.sender.username or "—")
+
             text += (
-                f"\n\n— *پیشنهاد* #{o.id}"
+                f"\n\n— <b>پیشنهاد</b> #{o.id}"
                 f"\n👤 {sender_name}"
                 f"\n💰 {o.unit_price_irt:,} تومان"
                 f"\n📌 وضعیت: {_offer_status_fa(o.status)}"
@@ -243,14 +242,14 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
     if edit:
         await message_obj.edit_text(
             text,
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=kb,
             disable_web_page_preview=True,
         )
     else:
         await message_obj.reply_text(
             text,
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=kb,
             disable_web_page_preview=True,
         )
