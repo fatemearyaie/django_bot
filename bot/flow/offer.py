@@ -442,14 +442,17 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await msg.reply_text("❌ خطا در ثبت پیشنهاد. لطفاً دوباره تلاش کن.", reply_markup=_main_menu_kb())
         return ConversationHandler.END
 
-    # آپدیت پیام کانال (همون امضای قبلی سرویس شما: req_id, offer_id, offer_name, status)
     try:
-        offer_name = sender.name or sender.username or ""  # فقط برای سازگاری با سرویس فعلی‌ات
-        await sync_to_async(upsert_offer_line_in_channel)(req.id, offer.id, offer_name, "PENDING")
+        offer_label = f"💰 {offer.unit_price_irt:,} | 🕒 {offer.created_at.strftime('%Y/%m/%d %H:%M')}"
+        await sync_to_async(upsert_offer_line_in_channel)(
+            req.id,
+            offer.id,
+            offer_label,
+            "PENDING"
+        )
     except Exception:
         pass
 
-    # پیام به مالک: لینک آگهی + method=value
     try:
         method_value = getattr(req, "method", None)
         method_text = str(method_value) if method_value is not None else "—"
@@ -470,7 +473,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
                 reply_markup=build_offer_manage_keyboard(offer.id),
             )
     except Exception:
-        # اگر خواستی می‌تونی اینجا log بذاری
         pass
 
     context.user_data.pop("offer_draft", None)
