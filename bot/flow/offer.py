@@ -45,6 +45,8 @@ RATE, NOTE, CONFIRM = range(3)
 CB_HOME = "offerflow:home"
 CB_PROFILE = "offerflow:profile"
 
+BTN_CANCEL = "❌ انصراف"
+
 @sync_to_async
 def _get_sender_last_offer_price(sender_id: int, request_id: int) -> int | None:
     return (
@@ -76,7 +78,12 @@ def _rk(rows: list[list[str]]) -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         one_time_keyboard=True,
     )
-
+def _rk_with_cancel(rows: list[list[str]]) -> ReplyKeyboardMarkup:
+    if not rows:
+        rows = []
+    if [BTN_CANCEL] not in rows:
+        rows.append([BTN_CANCEL])
+    return _rk(rows)
 
 def _main_menu_kb() -> ReplyKeyboardMarkup:
     try:
@@ -230,12 +237,11 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
 
     rows = [[f"✅ نرخ درخواست فروشنده/خریدار را تایید می‌کنم ({req_rate})"]] if req_rate is not None else []
-
     await msg.reply_text(
         f"داری برای «{_req_title(req)}» پیشنهاد می‌دی.\n\n"
         "یا نرخ پیشنهادی‌ت برای هر واحد ارز رو وارد کن"
         + ("، یا نرخ همین درخواست رو تایید کن:" if req_rate is not None else ":"),
-        reply_markup=_rk(rows) if rows else ReplyKeyboardRemove(),
+        reply_markup=_rk_with_cancel(rows),
     )
     return RATE
 
@@ -251,6 +257,8 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
 
     text = (msg.text or "").strip()
+    if text == BTN_CANCEL:
+        return await offer_cancel(update, context)
 
     if text.startswith("✅ نرخ درخواست"):
         if d.request_rate is None:
@@ -269,7 +277,7 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             await msg.reply_text(
                 "❌ نرخ نامعتبره.\n"
                 "لطفاً فقط عدد وارد کن یا از دکمه تایید نرخ استفاده کن.",
-                reply_markup=_rk(rows) if rows else ReplyKeyboardRemove(),
+                reply_markup=_rk_with_cancel(rows) if rows else _rk_with_cancel([]),
             )
             return RATE
 
@@ -277,7 +285,7 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     await msg.reply_text(
         "اگر توضیحی داری اضافه کن؛ یا دکمه بدون توضیحات رو بزن",
-        reply_markup=_rk([["📝 بدون توضیحات"]]),
+        reply_markup=_rk_with_cancel([["📝 بدون توضیحات"]]),
     )
     return NOTE
 
@@ -293,6 +301,8 @@ async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
 
     text = (msg.text or "").strip()
+    if text == BTN_CANCEL:
+        return await offer_cancel(update, context)
 
     if text == "📝 بدون توضیحات":
         d.note = None
@@ -306,7 +316,7 @@ async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     await msg.reply_text(
         _offer_preview(d),
-        reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
+        reply_markup=_rk_with_cancel([["✅ بله، ارسال کن"], ["❌ نه، منصرف شدم"]]),
     )
     return CONFIRM
 
@@ -323,6 +333,8 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return ConversationHandler.END
 
     text = (msg.text or "").strip()
+    if text == BTN_CANCEL:
+        return await offer_cancel(update, context)
 
     if text == "❌ نه، منصرف شدم":
         context.user_data.pop("offer_draft", None)
@@ -332,7 +344,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if text != "✅ بله، ارسال کن":
         await msg.reply_text(
             "لطفاً فقط یکی از گزینه‌ها رو انتخاب کن.",
-            reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
+            reply_markup=_rk_with_cancel([["✅ بله، ارسال کن"], ["❌ نه، منصرف شدم"]]),
         )
         return CONFIRM
 
@@ -374,7 +386,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.\n\n"
             "اگر می‌خواهی نرخ را تغییر بدهی، دوباره روی درخواست کلیک کن و عدد بالاتر وارد کن.",
             parse_mode="Markdown",
-            reply_markup=_rk([["❌ نه، منصرف شدم"], ["✅ بله، ارسال کن"]]),
+            reply_markup=_rk_with_cancel([["✅ بله، ارسال کن"],["❌ نه، منصرف شدم"]]),
         )
         return CONFIRM
 
@@ -425,7 +437,7 @@ async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data.pop("offer_draft", None)
     msg = update.effective_message
     if msg:
-        await msg.reply_text("کنسل شد.", reply_markup=ReplyKeyboardRemove())
+        await msg.reply_text("✅ انصراف انجام شد.", reply_markup=build_main_menu_keyboard())
     return ConversationHandler.END
 
 
