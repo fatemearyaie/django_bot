@@ -95,8 +95,6 @@ def build_application(token: str):
 
     for h in get_my_requests_handlers():
         application.add_handler(h)
-    for h in get_useful_links_handlers():
-        application.add_handler(h)
 
     application.add_handler(CallbackQueryHandler(offer_accept_cb, pattern=r"^offer_accept:\d+$"))
     application.add_handler(CallbackQueryHandler(offer_reject_cb, pattern=r"^offer_reject:\d+$"))
@@ -104,5 +102,8 @@ def build_application(token: str):
 
     for h in get_my_offers_handlers():
         application.add_handler(h)
+    for h in get_useful_links_handlers():
+        application.add_handler(h)
+
 
     return application

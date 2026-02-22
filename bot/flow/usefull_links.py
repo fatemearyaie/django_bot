@@ -4,6 +4,22 @@ from asgiref.sync import sync_to_async
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
+
+from asgiref.sync import sync_to_async
+from django.db.models import Avg
+from Trade.models.models import TradeOffer, TradeRequest
+
+@sync_to_async
+def get_system_avg_rates_by_currency():
+    qs = (
+        TradeOffer.objects
+        .select_related("request")
+        .filter(status=TradeOffer.Status.ACCEPTED)
+        .values("request__currency")
+        .annotate(avg_price=Avg("unit_price_irt"))
+    )
+    out = {row["request__currency"]: row["avg_price"] for row in qs}
+    return out
 BTN_USEFUL = "🔗لینک های مفید و نرخ ارز"
 
 
