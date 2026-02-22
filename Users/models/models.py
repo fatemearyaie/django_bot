@@ -31,7 +31,7 @@ class CustomUser(AbstractBaseUser,PermissionsMixin):
     name = models.CharField(max_length=50, null=True, blank=True, verbose_name='نام')
     last_name = models.CharField(max_length=50, null=True, blank=True, verbose_name='نام خانوادگی')
     country = models.ForeignKey(Country, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='کشور')
-
+    score = models.FloatField(null=True, blank=True, default=0)
 
 
 
