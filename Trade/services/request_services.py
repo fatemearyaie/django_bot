@@ -12,17 +12,22 @@ BOT_USERNAME = "excoinmarket_bot"
 def build_channel_post_text(req: TradeRequest) -> str:
     role = "خریدار" if req.role == TradeRequest.Role.BUYER else "فروشنده"
 
+    deal_method_fa = req.get_deal_method_display() if getattr(req, "deal_method", None) else "—"
+
+    amount_text = f"{req.amount:,}" if req.amount is not None else "—"
+
+    unit_price_text = f"{req.unit_price_irt:,}" if req.unit_price_irt is not None else "—"
+
     return (
         "📌 *درخواست جدید*\n\n"
         f"🆔 شناسه: `{req.id}`\n"
         f"👤 نقش: {role}\n"
         f"💱 ارز: {req.currency}\n"
-        f"💰 مقدار: {req.amount}\n"
-        f"🏷 قیمت هر واحد (تومان): {req.unit_price_irt:,}\n"
-        f"💳 روش معامله: {req.deal_method}\n"
+        f"💰 مقدار: {amount_text}\n"
+        f"🏷 قیمت هر واحد (تومان): {unit_price_text}\n"
+        f"💳 روش معامله: {deal_method_fa}\n"
         f"📝 توضیحات: {req.description or '—'}\n\n"
         "\n——————————————\n\n"
-
     )
 
 
