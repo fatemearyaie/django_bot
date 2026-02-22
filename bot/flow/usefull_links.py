@@ -1,17 +1,23 @@
 
+from html import escape
 from asgiref.sync import sync_to_async
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
-from bot.handlers import build_main_menu_keyboard
-from Trade.services.stat_service import get_global_avg_deals_by_currency
-
-
 BTN_USEFUL = "🔗لینک های مفید و نرخ ارز"
 
 
-def _fmt_avg(v: int | None) -> str:
-    return f"{v:,} تومان/واحد" if isinstance(v, int) else "—"
+def _fmt_avg(v):
+    try:
+        return f"{int(v):,} تومان/واحد"
+    except Exception:
+        return "—"
+
+
+@sync_to_async
+def get_global_avg_deals_by_currency():
+    # فعلاً نمونه
+    return {"USD": None, "EUR": None, "AED": None}
 
 
 async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -19,30 +25,30 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
     if not msg:
         return
 
-    avgs = await sync_to_async(get_global_avg_deals_by_currency)()
+    from bot.handlers import build_main_menu_keyboard  # برای circular نبودن
+
+    avgs = await get_global_avg_deals_by_currency()
 
     cur_fa = {"USD": "دلار", "EUR": "یورو", "AED": "درهم"}
+
     lines = []
-    for cur, avgp in avgs.items():
-        lines.append(f"• {cur_fa.get(cur, cur)} ({cur}): {_fmt_avg(avgp)}")
+    for cur in ["USD", "EUR", "AED"]:
+        label = escape(cur_fa.get(cur, cur))
+        avg = escape(_fmt_avg(avgs.get(cur)))
+        lines.append(f"• {label} ({escape(cur)}): {avg}")
 
     text = (
-        "🔗 لینک‌های مفید و نرخ ارز\n\n"
-        "📊 *میانگین معاملات کل سیستم* (فقط معاملات تایید شده)\n"
-        + "\n".join(lines)
-        + "\n\n"
-        "—\n"
-        "🔹\n️ سامانه خرید و فروش ارز"
-        "@FExPal_channel"
-        "🔹 نرخ لحظه ای ارز :"
-        "www.bonbast.com"
-        "https://fa.navasan.net/"
-        "www.tgju.org"
+            "🔗 لینک‌های مفید و نرخ ارز\n\n"
+            "<b>📊 میانگین معاملات کل سیستم</b>\n"
+            + "<br>".join(lines)
+            + "<br><br>"
+              "<b>🌍 نرخ ارز آنلاین</b><br>"
+              '• <a href="https://www.bonbast.com">www.bonbast.com</a>'
     )
 
     await msg.reply_text(
         text,
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=build_main_menu_keyboard(),
         disable_web_page_preview=True,
     )
@@ -51,5 +57,5 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
 def get_useful_links_handlers():
     return [
         CommandHandler("useful", useful_links_and_rates_entry),
-        MessageHandler(filters.Regex(rf"^{BTN_USEFUL}$"), useful_links_and_rates_entry),
+        MessageHandler(filters.TEXT & filters.Regex(rf"^{BTN_USEFUL}$"), useful_links_and_rates_entry),
     ]
