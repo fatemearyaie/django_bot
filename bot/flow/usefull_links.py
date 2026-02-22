@@ -80,14 +80,14 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
         lines.append(f"• {label} ({escape(cur)}): {avg}")
 
     text = (
-        "🔗 لینک‌های مفید و نرخ ارز\n\n"
-        "<b>📊 میانگین معاملات کل سیستم</b>\n"
+        "<b>🔗 </b>لینک‌های مفید و نرخ ارز\n\n"
+        "<b>📊 میانگین معاملات کل سیستم</b>\n\n"
         + "\n".join(lines)
-        + "\n\n"
-        "<b>🌍 نرخ ارز آنلاین</b>\n"
-        '• <a href="https://fa.navasan.net/">fa.navasan.net</a>\n'
-        '• <a href="https://www.bonbast.com/">bonbast.com</a>\n'
-        '• <a href="https://www.tgju.org/">tgju.org</a>\n'
+        + "\n\n\n\n"
+        "<b>🌍 نرخ ارز آنلاین</b>\n\n"
+        '• <a href="https://fa.navasan.net/">fa.navasan.net</a>\n\n'
+        '• <a href="https://www.bonbast.com/">bonbast.com</a>\n\n'
+        '• <a href="https://www.tgju.org/">tgju.org</a>\n\n'
     )
 
     await msg.reply_text(
