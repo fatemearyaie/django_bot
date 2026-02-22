@@ -179,19 +179,13 @@ def _req_title(req: TradeRequest) -> str:
 
 
 def _channel_post_link(req: TradeRequest) -> str | None:
-    """
-    اگر اطلاعات پیام کانال موجود باشد، لینک پیام را برمی‌گرداند.
-    - اگر username داشته باشیم: https://t.me/<username>/<message_id>
-    - اگر نداشته باشیم و chat_id شبیه -100... باشد: https://t.me/c/<id>/<message_id>
-    """
     try:
         msg_id = getattr(req, "channel_message_id", None)
         chat_id = getattr(req, "channel_chat_id", None)
-        username = getattr(req, "channel_username", None)  # اگر جایی ذخیره کرده باشی
+        username = getattr(req, "channel_username", None)
         if not msg_id or not chat_id:
             return None
 
-        # حالت کانال public با username
         if username:
             u = str(username).lstrip("@")
             return f"https://t.me/{u}/{int(msg_id)}"
@@ -454,8 +448,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         pass
 
     try:
-        method_value = getattr(req, "method", None)
-        method_text = str(method_value) if method_value is not None else "—"
+        method_text = req.get_deal_method_display() if req.deal_method else "—"
         ad_text = _ad_text(req)
 
         if req.owner and getattr(req.owner, "telegram_id", None):
