@@ -70,7 +70,6 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "ACCEPTED"
     )
 
-    # ✅ پیام به پیشنهاددهنده
     try:
         req = offer.request
         link = channel_post_link(req)

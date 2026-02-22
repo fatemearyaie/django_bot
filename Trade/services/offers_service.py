@@ -52,7 +52,7 @@ def build_offer_message(offer):
     joined = user.date_joined.strftime("%Y/%m/%d")
 
     return (
-        f"📩 *پیشنهاد جدید*  |  🆔 پیشنهاد: #{offer.id}\n\n"
+        f"📩 *پیشنهاد جدید*  |  🆔 پیشنهاد: #\n\n"
         f"💰 نرخ پیشنهادی: {offer.unit_price_irt:,} تومان\n"
         f"📝 توضیحات: {offer.message or '—'}\n\n"
     )
