@@ -40,16 +40,15 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
     text = (
             "🔗 لینک‌های مفید و نرخ ارز\n\n"
             "<b>📊 میانگین معاملات کل سیستم</b>\n"
-            + "<br>".join(lines)
-            + "<br><br>"
-              "<b>🌍 نرخ ارز آنلاین</b><br>"
+            + "\n".join(lines)
+            + "\n\n"
+              "<b>🌍 نرخ ارز آنلاین</b>\n"
               '• <a href="https://www.bonbast.com">www.bonbast.com</a>'
     )
 
     await msg.reply_text(
         text,
         parse_mode="HTML",
-        reply_markup=build_main_menu_keyboard(),
         disable_web_page_preview=True,
     )
 
