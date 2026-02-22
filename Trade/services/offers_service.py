@@ -1,11 +1,10 @@
 import os
 import re
-from datetime import datetime
 from asgiref.sync import async_to_sync
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.error import TelegramError
 
-from Trade.models.models import TradeRequest, TradeOffer
+from Trade.models.models import TradeRequest
 
 BOT_USERNAME = "excoinmarket_bot"
 
@@ -15,7 +14,7 @@ STATUS_EMOJI = {
     "REJECTED": "❌",
 }
 
-MARKER = "👥 *پیشنهادها:*"
+MARKER = "👥 *پیشنهاددهنده‌ها:*"
 
 
 # -----------------------
@@ -27,7 +26,9 @@ def build_offer_manage_keyboard(offer_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton("✅ تایید", callback_data=f"offer_accept:{offer_id}"),
             InlineKeyboardButton("❌ رد", callback_data=f"offer_reject:{offer_id}"),
         ],
-        [InlineKeyboardButton("👤 اطلاعات کاربر", callback_data=f"offer_user:{offer_id}")]
+        [
+            InlineKeyboardButton("👤 اطلاعات کاربر", callback_data=f"offer_user:{offer_id}")
+        ]
     ])
 
 
@@ -44,59 +45,43 @@ def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
 
 
 # -----------------------
-# Channel link helper
+# Messages
 # -----------------------
-def channel_post_link(req: TradeRequest) -> str | None:
-    """
-    اگر کانال public username داشته باشی بهتره از اون بسازی.
-    ولی اگر نداری، با chat_id=-100xxxx و message_id میشه t.me/c/... ساخت.
-    """
-    msg_id = getattr(req, "channel_message_id", None)
-    chat_id = getattr(req, "channel_chat_id", None)
-    if not msg_id or not chat_id:
-        return None
+def build_offer_message(offer):
+    user = offer.sender
+    joined = user.date_joined.strftime("%Y/%m/%d")
 
-    # public username option (اگر داری)
-    username = getattr(req, "channel_username", None)  # اگر فیلد نداری، None میمونه
-    if username:
-        return f"https://t.me/{username}/{msg_id}"
-
-    # private/supergroup style: -1001234567890 -> 1234567890 -> remove leading 100 => 1234567890? (Telegram uses /c/<id_without_-100>/<msg>)
-    s = str(chat_id)
-    if s.startswith("-100"):
-        internal = s[4:]
-        return f"https://t.me/c/{internal}/{msg_id}"
-
-    return None
+    return (
+        f"📩 *پیشنهاد جدید*  |  🆔 پیشنهاد: #{offer.id}\n\n"
+        f"💰 نرخ پیشنهادی: {offer.unit_price_irt:,} تومان\n"
+        f"📝 توضیحات: {offer.message or '—'}\n\n"
+    )
 
 
 # -----------------------
-# Rendering
+# Helpers
 # -----------------------
 def _emoji_for(status: str) -> str:
     return STATUS_EMOJI.get(status, STATUS_EMOJI["PENDING"])
 
 
-def _offer_line_text(offer: TradeOffer, status: str) -> str:
-    # پیشنهاددهنده و آیدی نیاد؛ فقط ساعت و مبلغ
-    t = getattr(offer, "created_at", None)
-    if isinstance(t, datetime):
-        t_str = t.strftime("%H:%M")
-    else:
-        t_str = "—"
-
-    price = getattr(offer, "unit_price_irt", None)
-    price_str = f"{price:,}" if isinstance(price, int) else (str(price) if price is not None else "—")
-
-    return f"{_emoji_for(status)} ⏰ {t_str} | 💰 {price_str} تومان"
+def _render_offer_line(offer_id: int, offer_name: str, status: str) -> str:
+    return f"{_emoji_for(status)} [{offer_id}] {offer_name}".strip()
 
 
-def _split_base_text(base_text: str) -> tuple[str, list[str]]:
-    if MARKER not in base_text:
-        return base_text.rstrip(), []
-    head, tail = base_text.split(MARKER, 1)
-    lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
-    return head.rstrip(), lines
+def _normalize_line_text(s: str) -> str:
+    if not s:
+        return ""
+
+    s = s.strip()
+
+    for emo in STATUS_EMOJI.values():
+        s = s.replace(emo, "")
+
+    s = re.sub(r"\[\s*\d+\s*\]", "", s)
+
+    s = " ".join(s.split()).strip()
+    return s
 
 
 def _extract_offer_id(line: str) -> int | None:
@@ -109,22 +94,19 @@ def _extract_offer_id(line: str) -> int | None:
         return None
 
 
-def _wrap_with_offer_id(offer_id: int, line: str) -> str:
-    # برای اینکه بتونیم همان offer را update کنیم، یک tag مخفی/متنی می‌گذاریم
-    # اما “آیدی پیشنهاد” نمایش داده نمیشه چون داخل [] هست و خودت قبلاً می‌خواستی نیاد.
-    # اگر می‌خوای کلاً حتی داخل متن هم نباشه، باید ساختار ذخیره جداگانه داشته باشی.
-    return f"[{offer_id}] {line}"
+def _split_base_text(base_text: str) -> tuple[str, list[str]]:
+    if MARKER not in base_text:
+        return base_text.rstrip(), []
 
-
-def _strip_visible_id_part(line: str) -> str:
-    # فقط برای normalizing نمایش (اگر لازم شد) — فعلاً استفاده نمی‌کنیم
-    return re.sub(r"^\[\s*\d+\s*\]\s*", "", (line or "")).strip()
+    head, tail = base_text.split(MARKER, 1)
+    lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
+    return head.rstrip(), lines
 
 
 # -----------------------
 # Core: Upsert
 # -----------------------
-def upsert_offer_line_in_channel(req_id: int, offer_id: int, status: str = "PENDING") -> bool:
+def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, status: str = "PENDING") -> bool:
     token = os.environ.get("API_TOKEN")
     if not token:
         print("API_TOKEN not set")
@@ -144,27 +126,30 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, status: str = "PEND
         print("No channel_post_text to edit from")
         return False
 
-    offer = TradeOffer.objects.filter(pk=offer_id).first()
-    if not offer:
-        print("TradeOffer not found:", offer_id)
-        return False
-
-    new_line_visible = _offer_line_text(offer, status=status)
-    new_line = _wrap_with_offer_id(offer_id, new_line_visible)
+    new_line = _render_offer_line(offer_id=offer_id, offer_name=offer_name, status=status)
 
     head, lines = _split_base_text(base_text)
 
     found = False
     for i, ln in enumerate(lines):
-        if _extract_offer_id(ln) == offer_id:
+        existing_id = _extract_offer_id(ln)
+        if existing_id == offer_id:
             lines[i] = new_line
             found = True
             break
 
     if not found:
+        name_norm = _normalize_line_text(offer_name)
+        if name_norm:
+            for i, ln in enumerate(lines):
+                if _extract_offer_id(ln) is None and _normalize_line_text(ln) == name_norm:
+                    lines[i] = new_line
+                    found = True
+                    break
+
+    if not found:
         lines.append(new_line)
 
-    # dedupe by offer_id
     deduped = []
     seen_ids = set()
     for ln in reversed(lines):
@@ -179,15 +164,9 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, status: str = "PEND
     lines = list(reversed(deduped))
 
     if lines:
-        # نمایش نهایی: id مخفی داخل [] هست ولی می‌تونی اگر خواستی حذفش کنی:
-        # نمایش واقعی: متن را بدون [] بساز اما برای update بعدی id لازم است.
         new_text = head + "\n\n" + MARKER + "\n" + "\n".join(lines) + "\n"
     else:
         new_text = head
-
-    # CLOSED check robust
-    CLOSED = getattr(TradeRequest.Status, "CLOSED", "CLOSED")
-    is_closed = (getattr(req, "status", None) == CLOSED)
 
     bot = Bot(token=token)
 
@@ -197,7 +176,7 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, status: str = "PEND
             message_id=req.channel_message_id,
             text=new_text,
             parse_mode="Markdown",
-            reply_markup=None if is_closed else build_channel_keyboard(req.id),
+            reply_markup=None if req.status == TradeRequest.Status.CLOSED else build_channel_keyboard(req.id),
             disable_web_page_preview=True,
         )
         TradeRequest.objects.filter(pk=req.pk).update(channel_post_text=new_text)
@@ -211,9 +190,22 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, status: str = "PEND
         return False
 
 
-def set_offer_status_in_channel(req_id: int, offer_id: int, status: str) -> bool:
+# -----------------------
+# Wrappers
+# -----------------------
+def add_offer_name_to_channel(req_id: int, offer_name: str, offer_id: int) -> bool:
     return upsert_offer_line_in_channel(
         req_id=req_id,
         offer_id=offer_id,
+        offer_name=offer_name,
+        status="PENDING",
+    )
+
+
+def set_offer_status_in_channel(req_id: int, offer_id: int, offer_name: str, status: str) -> bool:
+    return upsert_offer_line_in_channel(
+        req_id=req_id,
+        offer_id=offer_id,
+        offer_name=offer_name,
         status=status,
     )

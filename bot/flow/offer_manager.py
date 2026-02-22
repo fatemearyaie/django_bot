@@ -62,11 +62,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _accept_offer_and_close_request(offer)
 
     # ✅ آپدیت پیام کانال + حذف دکمه پیشنهاد بده (چون req بسته شد)
-    await sync_to_async(set_offer_status_in_channel)(
-        offer.request.id,
-        offer.id,
-        "ACCEPTED"
-    )
+    await sync_to_async(set_offer_status_in_channel)(offer.request.id, offer.id, "ACCEPTED")
 
     # ✅ پیام به پیشنهاددهنده (بدون اسم/آیدی پیشنهاددهنده)
     try:
