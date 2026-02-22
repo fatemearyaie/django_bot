@@ -2,6 +2,7 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 
+from bot.flow.currency_request import get_currency_requests_handlers
 from bot.flow.offer_manager import offer_accept_cb, offer_user_info_cb, offer_reject_cb
 from bot.flow.registration import (
     post_init,
@@ -103,6 +104,8 @@ def build_application(token: str):
     for h in get_my_offers_handlers():
         application.add_handler(h)
     for h in get_useful_links_handlers():
+        application.add_handler(h)
+    for h in get_currency_requests_handlers():
         application.add_handler(h)
 
 
