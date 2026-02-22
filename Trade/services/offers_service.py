@@ -209,3 +209,26 @@ def set_offer_status_in_channel(req_id: int, offer_id: int, offer_name: str, sta
         offer_name=offer_name,
         status=status,
     )
+
+def channel_post_link(req: TradeRequest) -> str | None:
+    try:
+        msg_id = getattr(req, "channel_message_id", None)
+        chat_id = getattr(req, "channel_chat_id", None)
+
+        username = getattr(req, "channel_username", None)
+
+        if not msg_id or not chat_id:
+            return None
+
+        if username:
+            u = str(username).lstrip("@")
+            return f"https://t.me/{u}/{int(msg_id)}"
+
+        s = str(chat_id)
+        if s.startswith("-100"):
+            internal = s.replace("-100", "", 1)
+            return f"https://t.me/c/{internal}/{int(msg_id)}"
+
+        return None
+    except Exception:
+        return None

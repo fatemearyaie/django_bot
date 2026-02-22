@@ -62,9 +62,15 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _accept_offer_and_close_request(offer)
 
     # ✅ آپدیت پیام کانال + حذف دکمه پیشنهاد بده (چون req بسته شد)
-    await sync_to_async(set_offer_status_in_channel)(offer.request.id, offer.id, "ACCEPTED")
+    offer_name = offer.sender.name or offer.sender.username or ""
+    await sync_to_async(set_offer_status_in_channel)(
+        offer.request.id,
+        offer.id,
+        offer_name,
+        "ACCEPTED"
+    )
 
-    # ✅ پیام به پیشنهاددهنده (بدون اسم/آیدی پیشنهاددهنده)
+    # ✅ پیام به پیشنهاددهنده
     try:
         req = offer.request
         link = channel_post_link(req)
@@ -73,6 +79,15 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         method_value = getattr(req, "method", None)  # value خام
         method_text = str(method_value) if method_value is not None else "—"
 
+        amount_text = getattr(req, "amount", None)
+        amount_text = str(amount_text) if amount_text is not None else "—"
+
+        price_val = getattr(offer, "unit_price_irt", None)
+        price_text = f"{int(price_val):,}" if isinstance(price_val, (int, float)) else "—"
+
+        created_at = getattr(offer, "created_at", None)
+        created_at_text = created_at.strftime("%Y/%m/%d %H:%M") if created_at else "—"
+
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
             parse_mode="Markdown",
@@ -80,9 +95,9 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "✅ *پیشنهاد شما تایید شد*\n\n"
                 f"📌 آگهی: {ad_text}\n"
                 f"🔁 روش معامله: `{method_text}`\n"
-                f"📦 مقدار: {getattr(req, 'amount', '—')}\n"
-                f"💰 مبلغ/نرخ پیشنهاد: {getattr(offer, 'unit_price_irt', '—'):,} تومان\n"
-                f"🕒 زمان ثبت پیشنهاد: {offer.created_at.strftime('%Y/%m/%d %H:%M') if getattr(offer,'created_at',None) else '—'}\n"
+                f"📦 مقدار: {amount_text}\n"
+                f"💰 مبلغ/نرخ پیشنهاد: {price_text} تومان\n"
+                f"🕒 زمان ثبت پیشنهاد: {created_at_text}\n"
                 f"📝 توضیحات: {offer.message if offer.message else '—'}\n\n"
                 "این پیام را برای ادمین ارسال کنید تا ارتباط برقرار شود."
             )
@@ -126,9 +141,11 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     offer.status = TradeOffer.Status.REJECTED
     await sync_to_async(offer.save)(update_fields=["status"])
 
+    offer_name = offer.sender.name or offer.sender.username or ""
     await sync_to_async(set_offer_status_in_channel)(
         offer.request.id,
         offer.id,
+        offer_name,
         "REJECTED"
     )
 
