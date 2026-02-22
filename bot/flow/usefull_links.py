@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
 from bot.handlers import build_main_menu_keyboard
-from Trade.services.stats_service import get_global_avg_deals_by_currency
+from Trade.services.stat_service import get_global_avg_deals_by_currency
 
 
 BTN_USEFUL = "🔗 لینک‌های مفید و نرخ ارز"
