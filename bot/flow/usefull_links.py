@@ -41,9 +41,11 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
             "🔗 لینک‌های مفید و نرخ ارز\n\n"
             "<b>📊 میانگین معاملات کل سیستم</b>\n"
             + "\n".join(lines)
-            + "\n\n"
+            + "\n\n\n"
               "<b>🌍 نرخ ارز آنلاین</b>\n"
-              '• <a href="https://www.bonbast.com">www.bonbast.com</a>'
+              '<a href="https://fa.navasan.net/">www.fa.navasan.net/</a>'
+              '<a href="https://www.bonbast.com">www.bonbast.com</a>'
+              '<a href="https://www.tgju.org">www.tgju.org</a>'
     )
 
     await msg.reply_text(
