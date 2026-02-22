@@ -497,6 +497,11 @@ def _status_fa(s: str) -> str:
     }
     return mapping.get(s, s)
 
+def deal_method_fa(req: TradeRequest) -> str:
+    value = getattr(req, "deal_method", None)
+    if not value:
+        return "—"
+    return dict(TradeRequest.DealMethod.choices).get(value, str(value))
 
 def _req_status_fa(s: str) -> str:
     mapping = {

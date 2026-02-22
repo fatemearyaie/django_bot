@@ -30,6 +30,10 @@ from Trade.services.request_services import publish_trade_request_to_channel
 
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
 
+
+def deal_method_fa(value: str) -> str:
+    return dict(TradeRequest.DealMethod.choices).get(value, value)
+
 side_key = ReplyKeyboardMarkup(
     [[KeyboardButton("خریدارم"), KeyboardButton("فروشنده ام")]],
     resize_keyboard=True,
@@ -190,7 +194,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         f"👤 نقش: {_role_fa(r.role)} | 💱 ارز: {r.currency}\n"
         f"💰 مقدار: {r.amount}\n"
         f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
-        f"💳 روش معامله: {r.deal_method}\n"
+        f"💳 روش معامله: {r.get_deal_method_display()}\n"
         f"📝 توضیحات: {r.description or '—'}\n"
         f"📌 وضعیت: {_req_status_fa(r.status)}\n"
         "\n—————————————————————\n"
@@ -412,7 +416,7 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
         f"💱 ارز: {data['currency']}\n"
         f"💰 مقدار: {data['amount']}\n"
         f"🏷 قیمت هر واحد (تومان): {data['unit_price_irt']}\n"
-        f"🔁 روش معامله: {data['deal_method']}\n"
+        f"🔁 روش معامله: {deal_method_fa(data['deal_method'])}\n"
         f"📝 توضیحات: {data['description'] or '—'}\n\n"
         "\n✅ از ارسال مطمئنی؟"
     )
