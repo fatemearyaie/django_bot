@@ -13,6 +13,7 @@ from bot.flow.registration import (
 )
 from bot.flow.request import get_trade_request_conversation, get_my_requests_handlers
 from bot.flow.offer import build_offer_conversation, get_my_offers_handlers
+from bot.flow.usefull_links import get_useful_links_handlers
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -94,6 +95,8 @@ def build_application(token: str):
 
     for h in get_my_requests_handlers():
         application.add_handler(h)
+    for h in get_useful_links_handlers():
+        app.add_handler(h)
 
     application.add_handler(CallbackQueryHandler(offer_accept_cb, pattern=r"^offer_accept:\d+$"))
     application.add_handler(CallbackQueryHandler(offer_reject_cb, pattern=r"^offer_reject:\d+$"))
