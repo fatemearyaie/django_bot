@@ -176,7 +176,7 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
             message_id=req.channel_message_id,
             text=new_text,
             parse_mode="Markdown",
-            reply_markup=build_channel_keyboard(req.id),
+            reply_markup=None if req.status == TradeRequest.Status.CLOSED else build_channel_keyboard(req.id),
             disable_web_page_preview=True,
         )
         TradeRequest.objects.filter(pk=req.pk).update(channel_post_text=new_text)

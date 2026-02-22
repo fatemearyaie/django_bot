@@ -344,7 +344,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if text != "✅ بله، ارسال کن":
         await msg.reply_text(
             "لطفاً فقط یکی از گزینه‌ها رو انتخاب کن.",
-            reply_markup=_rk_with_cancel([["✅ بله، ارسال کن"], ["❌ نه، منصرف شدم"]]),
+            reply_markup=_rk([["✅ بله، ارسال کن"], ["❌ نه، منصرف شدم"]]),
         )
         return CONFIRM
 
