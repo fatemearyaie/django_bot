@@ -663,7 +663,6 @@ async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
         desc = ""
 
     context.user_data["tr"]["description"] = desc
-    await update.message.reply_text("✅ دریافت شد.", reply_markup=ReplyKeyboardRemove())
     await send_preview(update.message, context)
     return TR_CONFIRM
 

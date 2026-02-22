@@ -2,44 +2,42 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
-from Trade.services.offers_service import set_offer_status_in_channel
+
+from django.db import transaction
 
 from Trade.models.models import TradeOffer, TradeRequest
-from Trade.services.offers_service import build_offer_after_accept_keyboard
+from Trade.services.offers_service import (
+    set_offer_status_in_channel,
+    build_offer_after_accept_keyboard,
+    channel_post_link,
+)
 
 
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
     return (
         TradeOffer.objects
-        .select_related("sender", "request")
-        .filter(
-            id=offer_id,
-            request__owner__telegram_id=owner_tg_id
-        )
+        .select_related("sender", "request", "request__owner")
+        .filter(id=offer_id, request__owner__telegram_id=owner_tg_id)
         .first()
     )
 
-from django.db import transaction
 
 @sync_to_async
 def _accept_offer_and_close_request(offer: TradeOffer):
     with transaction.atomic():
-        # accept this offer
         offer.status = TradeOffer.Status.ACCEPTED
         offer.save(update_fields=["status"])
 
-        # close request
         req = offer.request
         req.status = TradeRequest.Status.CLOSED
         req.save(update_fields=["status"])
 
-        # optional: reject other pending offers for this request
         TradeOffer.objects.filter(
-            request_id=req.id
-        ).exclude(id=offer.id).filter(
+            request_id=req.id,
             status=TradeOffer.Status.PENDING
-        ).update(status=TradeOffer.Status.REJECTED)
+        ).exclude(id=offer.id).update(status=TradeOffer.Status.REJECTED)
+
 
 async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -52,7 +50,6 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     offer = await get_offer_for_owner(offer_id, q.from_user.id)
-
     if not offer:
         await q.answer("❌ دسترسی نداری", show_alert=True)
         return
@@ -61,39 +58,45 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.answer("قبلاً تایید شده ✅", show_alert=False)
         return
 
-
+    # ✅ accept + close
     await _accept_offer_and_close_request(offer)
 
-    offer_name = offer.sender.name or offer.sender.username or ""
+    # ✅ آپدیت پیام کانال + حذف دکمه پیشنهاد بده (چون req بسته شد)
     await sync_to_async(set_offer_status_in_channel)(
         offer.request.id,
         offer.id,
-        offer_name,
         "ACCEPTED"
     )
 
+    # ✅ پیام به پیشنهاددهنده (بدون اسم/آیدی پیشنهاددهنده)
     try:
+        req = offer.request
+        link = channel_post_link(req)
+        ad_text = f"[مشاهده آگهی]({link})" if link else f"#{req.id}"
+
+        method_value = getattr(req, "method", None)  # value خام
+        method_text = str(method_value) if method_value is not None else "—"
 
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
-            text=
-            "✅ *پیشنهاد شما تایید شد*\n\n"
-                f"📌 آگهی: {offer.request.id}\n"
-                f" مقدار: {offer.request.amount}\n"
-                f"✅ نرخ پیشنهادی شما: {offer.unit_price_irt}\n"
+            parse_mode="Markdown",
+            text=(
+                "✅ *پیشنهاد شما تایید شد*\n\n"
+                f"📌 آگهی: {ad_text}\n"
+                f"🔁 روش معامله: `{method_text}`\n"
+                f"📦 مقدار: {getattr(req, 'amount', '—')}\n"
+                f"💰 مبلغ/نرخ پیشنهاد: {getattr(offer, 'unit_price_irt', '—'):,} تومان\n"
+                f"🕒 زمان ثبت پیشنهاد: {offer.created_at.strftime('%Y/%m/%d %H:%M') if getattr(offer,'created_at',None) else '—'}\n"
                 f"📝 توضیحات: {offer.message if offer.message else '—'}\n\n"
-                f"\nاین پیام رو برای ادمین بفرستید تا ارتباط بین شما و درخواست دهنده برقرار بشه. "
-
+                "این پیام را برای ادمین ارسال کنید تا ارتباط برقرار شود."
+            )
         )
     except Exception:
         pass
 
+    # ✅ آپدیت پیام مالک
     base_text = q.message.text or q.message.caption or ""
-    new_text = (
-        "🟩✅ تایید شد\n"
-        "━━━━━━━━━━━━━━\n"
-        f"{base_text}"
-    )
+    new_text = "🟩✅ تایید شد\n━━━━━━━━━━━━━━\n" + base_text
 
     try:
         await q.edit_message_text(
@@ -120,28 +123,31 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     offer_id = int(q.data.split(":")[1])
     offer = await get_offer_for_owner(offer_id, q.from_user.id)
-
     if not offer:
         await q.answer("❌ دسترسی نداری", show_alert=True)
         return
 
     offer.status = TradeOffer.Status.REJECTED
-    await sync_to_async(offer.save)()
+    await sync_to_async(offer.save)(update_fields=["status"])
 
-    offer_name = offer.sender.name or offer.sender.username or ""
     await sync_to_async(set_offer_status_in_channel)(
         offer.request.id,
         offer.id,
-        offer_name,
         "REJECTED"
     )
 
-    await context.bot.send_message(
-        chat_id=offer.sender.telegram_id,
-        text="❌ متأسفانه پیشنهاد شما رد شد."
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=offer.sender.telegram_id,
+            text="❌ متأسفانه پیشنهاد شما رد شد."
+        )
+    except Exception:
+        pass
 
-    await q.message.delete()
+    try:
+        await q.message.delete()
+    except Exception:
+        pass
 
 
 async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -158,7 +164,7 @@ async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await q.answer(
         f"👤 {user.name}\n"
-        f"👤{user.last_name}\n"
+        f"👤 {user.last_name}\n"
         f"\n📅 عضو از: {joined}",
         show_alert=True
     )
