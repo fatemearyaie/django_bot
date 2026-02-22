@@ -184,12 +184,6 @@ def build_myreq_list_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
 
 async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_requests(user.id, page)
-    link = build_channel_link(r)
-
-    if link:
-        req_id_text = f"[#{r.id}]({link})"
-    else:
-        req_id_text = f"#{r.id}"
 
     if total == 0:
         if edit:
@@ -200,14 +194,18 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         return
 
     max_page = max((total - 1) // MYREQ_PAGE_SIZE, 0)
-    if page < 0:
-        page = 0
-    if page > max_page:
-        page = max_page
+    page = max(0, min(page, max_page))
 
     items, total = await fetch_user_requests(user.id, page)
     r = items[0]
     offers = await fetch_offers_for_request(r.id)
+
+    # ✅ لینک‌دار کردن آیدی درخواست (بعد از اینکه r مشخص شد)
+    link = build_channel_link(r)
+    if link:
+        req_id_text = f"[#{r.id}]({link})"
+    else:
+        req_id_text = f"#{r.id}"
 
     text = (
         f"📥 *درخواست‌های من* (صفحه {page+1} از {max_page+1})\n\n"
@@ -256,7 +254,6 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
             reply_markup=kb,
             disable_web_page_preview=True,
         )
-
 
 async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
