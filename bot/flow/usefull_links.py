@@ -7,7 +7,7 @@ from bot.handlers import build_main_menu_keyboard
 from Trade.services.stat_service import get_global_avg_deals_by_currency
 
 
-BTN_USEFUL = "🔗 لینک‌های مفید و نرخ ارز"
+BTN_USEFUL = "🔗لینک های مفید و نرخ ارز"
 
 
 def _fmt_avg(v: int | None) -> str:
@@ -32,6 +32,12 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
         + "\n".join(lines)
         + "\n\n"
         "—\n"
+        "🔹\n️ سامانه خرید و فروش ارز"
+        "@FExPal_channel"
+        "🔹 نرخ لحظه ای ارز :"
+        "www.bonbast.com"
+        "https://fa.navasan.net/"
+        "www.tgju.org"
     )
 
     await msg.reply_text(
