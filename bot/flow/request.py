@@ -438,8 +438,11 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
         f"📝 توضیحات: {data['description'] or '—'}\n\n"
         "\n✅ از ارسال مطمئنی؟"
     )
-    await message_obj.reply_text(preview, reply_markup=confirm_key)
-
+    await message_obj.reply_text(
+        preview,
+        parse_mode="Markdown",
+        reply_markup=confirm_key
+    )
 
 async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
