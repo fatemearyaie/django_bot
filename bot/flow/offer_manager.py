@@ -4,7 +4,7 @@ from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
 from Trade.services.offers_service import set_offer_status_in_channel
 
-from Trade.models.models import TradeOffer
+from Trade.models.models import TradeOffer, TradeRequest
 from Trade.services.offers_service import build_offer_after_accept_keyboard
 
 
@@ -20,6 +20,26 @@ def get_offer_for_owner(offer_id: int, owner_tg_id: int):
         .first()
     )
 
+from django.db import transaction
+
+@sync_to_async
+def _accept_offer_and_close_request(offer: TradeOffer):
+    with transaction.atomic():
+        # accept this offer
+        offer.status = TradeOffer.Status.ACCEPTED
+        offer.save(update_fields=["status"])
+
+        # close request
+        req = offer.request
+        req.status = TradeRequest.Status.CLOSED
+        req.save(update_fields=["status"])
+
+        # optional: reject other pending offers for this request
+        TradeOffer.objects.filter(
+            request_id=req.id
+        ).exclude(id=offer.id).filter(
+            status=TradeOffer.Status.PENDING
+        ).update(status=TradeOffer.Status.REJECTED)
 
 async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -42,8 +62,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 
-    offer.status = TradeOffer.Status.ACCEPTED
-    await sync_to_async(offer.save)()
+    await _accept_offer_and_close_request(offer)
 
     offer_name = offer.sender.name or offer.sender.username or ""
     await sync_to_async(set_offer_status_in_channel)(
