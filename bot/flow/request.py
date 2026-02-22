@@ -30,6 +30,22 @@ from Trade.services.request_services import publish_trade_request_to_channel
 
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
 
+def build_channel_link(req: TradeRequest) -> str | None:
+    try:
+        if not req.channel_chat_id or not req.channel_message_id:
+            return None
+
+        chat_id = str(req.channel_chat_id)
+        msg_id = req.channel_message_id
+
+        if chat_id.startswith("-100"):
+            internal = chat_id.replace("-100", "", 1)
+            return f"https://t.me/c/{internal}/{msg_id}"
+
+        return None
+    except Exception:
+        return None
+
 
 def deal_method_fa(value: str) -> str:
     return dict(TradeRequest.DealMethod.choices).get(value, value)
@@ -168,6 +184,12 @@ def build_myreq_list_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
 
 async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_requests(user.id, page)
+    link = build_channel_link(r)
+
+    if link:
+        req_id_text = f"[#{r.id}]({link})"
+    else:
+        req_id_text = f"#{r.id}"
 
     if total == 0:
         if edit:
@@ -190,7 +212,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
     text = (
         f"📥 *درخواست‌های من* (صفحه {page+1} از {max_page+1})\n\n"
         "🧾 *درخواست*\n"
-        f"*🆔 #{r.id}*\n\n"
+        f"*🆔 {req_id_text}*\n\n"
         f"👤 نقش: {_role_fa(r.role)} | 💱 ارز: {r.currency}\n"
         f"💰 مقدار: {r.amount}\n"
         f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
