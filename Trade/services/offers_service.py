@@ -49,7 +49,6 @@ def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
 # -----------------------
 def build_offer_message(offer):
     user = offer.sender
-    joined = user.date_joined.strftime("%Y/%m/%d")
 
     return (
         f"📩 *پیشنهاد جدید*  |  🆔 پیشنهاد: #\n\n"

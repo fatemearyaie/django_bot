@@ -83,17 +83,15 @@ def build_application(token: str):
     application = Application.builder().token(token).build()
     application.post_init = post_init
 
-    application.add_handler(build_registration_conversation())
+    application.add_handler(build_offer_conversation(), group=0)
+    application.add_handler(CommandHandler("start", start), group=1)
+    application.add_handler(build_registration_conversation(), group=2)
 
     application.add_handler(
         MessageHandler(filters.TEXT & filters.Regex("^⁉️درباره ما$"), about_handler)
     )
     for h in get_currency_requests_handlers():
         application.add_handler(h)
-
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(build_offer_conversation())
 
     application.add_handler(get_trade_request_conversation())
 

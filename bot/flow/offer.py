@@ -231,13 +231,17 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not msg or not tg:
         return ConversationHandler.END
 
-    # args must be like: offer_123
     if not context.args:
+        # fallback به start عمومی
+        from bot.main import start as start_public
+        await start_public(update, context)
         return ConversationHandler.END
 
     arg = str(context.args[0]).strip()
     m = START_OFFER_RE.match(arg)
     if not m:
+        from bot.main import start as start_public
+        await start_public(update, context)
         return ConversationHandler.END
 
     request_id = int(m.group(1))
@@ -675,7 +679,6 @@ def build_offer_conversation() -> ConversationHandler:
             CommandHandler(
                 "start",
                 offer_start_entry,
-                filters=filters.Regex(r"^/start\s+offer_\d+\s*$"),
             )
         ],
         states={
