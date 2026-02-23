@@ -224,6 +224,10 @@ def _offer_preview(d: OfferDraft) -> str:
 async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
     tg = update.effective_user
+
+    print("START ARGS:", context.args)
+
+
     if not msg or not tg:
         return ConversationHandler.END
 

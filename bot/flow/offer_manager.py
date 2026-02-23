@@ -75,8 +75,10 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         link = channel_post_link(req)
         ad_text = f"[مشاهده آگهی]({link})" if link else f"#{req.id}"
 
-        method_value = getattr(req, "method", None)  # value خام
-        method_text = str(method_value) if method_value is not None else "—"
+        method_value = getattr(req, "deal_method", None)
+        method_text = dict(TradeRequest.DealMethod.choices).get(method_value,str(method_value)) if method_value else "—"
+
+
 
         amount_text = getattr(req, "amount", None)
         amount_text = str(amount_text) if amount_text is not None else "—"
