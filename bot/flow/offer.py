@@ -59,7 +59,7 @@ def jalali_with_month_name(dt):
     jdt = jdatetime.datetime.fromgregorian(datetime=dt)
 
     month_name = jdt.strftime("%B")  # ✅ اسفند، فروردین، ...
-    return f" {jdt.day:02d} - {jdt.strftime('%H:%M')}{month_name}"
+    return f" {jdt.day:02d}{month_name}{jdt.strftime('%H:%M')}"
 
 @sync_to_async
 def _get_sender_last_offer_price(sender_id: int, request_id: int) -> int | None:
