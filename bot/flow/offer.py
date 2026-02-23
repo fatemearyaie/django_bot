@@ -59,7 +59,7 @@ def jalali_with_month_name(dt):
     jdt = jdatetime.datetime.fromgregorian(datetime=dt)
 
     month_name = jdt.strftime("%B")  # ✅ اسفند، فروردین، ...
-    return f"{jdt.year} {month_name} {jdt.day:02d} - {jdt.strftime('%H:%M')}"
+    return f" {jdt.day:02d} - {jdt.strftime('%H:%M')}{month_name}"
 
 @sync_to_async
 def _get_sender_last_offer_price(sender_id: int, request_id: int) -> int | None:
@@ -463,7 +463,10 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return ConversationHandler.END
 
     try:
-        offer_label = f"  {offer.unit_price_irt:,} | 🕒 {jalali_with_month_name(offer.created_at)}"
+        offer_label = (
+            f"{offer.unit_price_irt:,} تومان "
+            f"در {jalali_with_month_name(offer.created_at)}"
+        )
         await sync_to_async(upsert_offer_line_in_channel)(
             req.id,
             offer.id,
