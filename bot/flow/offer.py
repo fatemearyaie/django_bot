@@ -623,7 +623,7 @@ async def send_my_offers_list(message_obj, user: CustomUser, page: int, *, edit:
         f"🧾 پیشنهاد #{o.id}\n"
         f"💰 نرخ پیشنهادی: {o.unit_price_irt:,} تومان/واحد\n"
         f"📌 وضعیت پیشنهاد: {offer_status}\n"
-        f"🕒 {jalali_with_month_name(req.offer.created_at)}\n"
+        f"🕒 {jalali_with_month_name(req.offers.created_at)}\n"
     )
 
     note = (getattr(o, "message", "") or "").strip()
