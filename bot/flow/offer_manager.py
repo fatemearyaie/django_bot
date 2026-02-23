@@ -11,6 +11,7 @@ from Trade.services.offers_service import (
     build_offer_after_accept_keyboard,
     channel_post_link,
 )
+from bot.flow.offer import jalali_with_month_name
 
 FEE = config("TRADE_REQUEST_FEE")
 

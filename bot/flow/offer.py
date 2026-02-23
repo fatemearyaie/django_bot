@@ -608,6 +608,10 @@ async def send_my_offers_list(message_obj, user: CustomUser, page: int, *, edit:
 
     offer_status = _status_fa(getattr(o, "status", "—"))
 
+    created_at = getattr(o, "created_at", None)
+    created_at_text = jalali_with_month_name(created_at) if created_at else "—"
+
+
     header = (
         f"📨 *پیشنهادهای من* (صفحه {page+1} از {max_page+1})\n\n"
         f"🧾 *درخواست مربوطه*\n"
@@ -618,12 +622,13 @@ async def send_my_offers_list(message_obj, user: CustomUser, page: int, *, edit:
         "\n—————————————————————\n"
     )
 
+
     offer_block = (
         f"📌 *پیشنهاد شما*\n"
         f"🧾 پیشنهاد #{o.id}\n"
         f"💰 نرخ پیشنهادی: {o.unit_price_irt:,} تومان/واحد\n"
         f"📌 وضعیت پیشنهاد: {offer_status}\n"
-        f"🕒 {jalali_with_month_name(offer.created_at)}\n"
+        f"🕒 {created_at_text}\n"
     )
 
     note = (getattr(o, "message", "") or "").strip()
