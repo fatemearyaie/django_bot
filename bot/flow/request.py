@@ -67,7 +67,7 @@ currency_key = ReplyKeyboardMarkup(
 
 method_key = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("انتقال آنی پی پال"), KeyboardButton("حواله بانکی")],
+        [KeyboardButton("انتقال آنی (پی پال)"), KeyboardButton("حواله بانکی")],
         [KeyboardButton("سایر"), KeyboardButton("مسترکارت")]
     ],
     resize_keyboard=True,
@@ -389,7 +389,7 @@ def map_role(text: str) -> str | None:
 
 def map_method(text: str) -> str | None:
     t = (text or "").strip()
-    if t == "انتقال آنی پی پال":
+    if t == "انتقال آنی (پی پال)":
         return TradeRequest.DealMethod.PAYPAL
     if t == "حواله بانکی":
         return TradeRequest.DealMethod.TRANSFER
