@@ -230,6 +230,11 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     if not context.args:
         return ConversationHandler.END
+    arg = context.args[0]
+
+    if not arg.startwith("offer_"):
+        return ConversationHandler.END
+    request_id = int(arg.split("_")[1])
 
     m = START_OFFER_RE.match(str(context.args[0]).strip())
     if not m:
@@ -665,7 +670,6 @@ def build_offer_conversation() -> ConversationHandler:
             CommandHandler(
                 "start",
                 offer_start_entry,
-                filters=filters.Regex(r"^/start\s+offer_\d+$"),
             )
         ],
         states={
