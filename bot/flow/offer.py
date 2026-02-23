@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Optional
-from bot.handlers import start as start_public
 
 from asgiref.sync import sync_to_async
 from django.db.models import Q
@@ -242,6 +241,8 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
 
     if not context.args:
+        # fallback به start عمومی
+        from bot.main import start as start_public
         await start_public(update, context)
         return ConversationHandler.END
 
