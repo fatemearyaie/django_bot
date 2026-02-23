@@ -7,8 +7,8 @@ from Users.models import CustomUser
 class TradeRequest(models.Model):
 
     class Role(models.TextChoices):
-        BUYER = "buyer", "خریدار"
-        SELLER = "seller", "فروشنده"
+        BUYER = "buyer", "خرید"
+        SELLER = "seller", "فروش"
 
     class Currency(models.TextChoices):
         EUR = "EUR", "یورو"

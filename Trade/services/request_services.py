@@ -13,6 +13,7 @@ def build_channel_post_text(req: TradeRequest) -> str:
     role = "خریدار" if req.role == TradeRequest.Role.BUYER else "فروشنده"
 
     deal_method_fa = req.get_deal_method_display() if getattr(req, "deal_method", None) else "—"
+    currency_fa = req.get_currency_display() if getattr(req, "currency", None) else "—"
 
     amount_text = f"{req.amount:,}" if req.amount is not None else "—"
 
@@ -20,7 +21,7 @@ def build_channel_post_text(req: TradeRequest) -> str:
 
     return (
         f"📌 درخواست {req.id} \n\n"
-        f"👤{role} {amount_text} {req.currency}\n"
+        f"👤{role} {amount_text} {currency_fa}\n"
         f"🏷 *قیمت هر واحد (تومان):* {unit_price_text}\n\n"
         f"💳 *روش معامله:* {deal_method_fa}\n"
         f"📝 توضیحات: {req.description or '—'}\n\n\n"
