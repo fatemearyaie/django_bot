@@ -49,15 +49,17 @@ BTN_CANCEL = "❌ انصراف"
 BTN_SEND = "✅ بله، ارسال کن"
 BTN_NO_NOTE = "📝 بدون توضیحات"
 
+
+jdatetime.set_locale("fa_IR")
 def jalali_with_month_name(dt):
     if not dt:
         return "—"
 
-    dt = timezone.localtime(dt)  # مهم برای تایم‌زون
+    dt = timezone.localtime(dt)
     jdt = jdatetime.datetime.fromgregorian(datetime=dt)
 
-    month_name = jdt.strftime("%B")  # اسم ماه فارسی
-    return f"{jdt.day:02d} {month_name} {jdt.year} - {jdt.strftime('%H:%M')}"
+    month_name = jdt.strftime("%B")  # ✅ اسفند، فروردین، ...
+    return f"{jdt.year} {month_name} {jdt.day:02d} - {jdt.strftime('%H:%M')}"
 
 @sync_to_async
 def _get_sender_last_offer_price(sender_id: int, request_id: int) -> int | None:
@@ -484,7 +486,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
                     f"📌 آگهی: {ad_text}\n"
                     f"🔁 روش معامله: `{method_text}`\n"
                     f"💰 مبلغ/نرخ پیشنهاد: {offer.unit_price_irt:,} تومان/واحد\n"
-                    f"🕒 زمان ثبت: {offer.created_at.strftime('%Y/%m/%d %H:%M')}\n"
+                    f"🕒 زمان ثبت: {jalali_with_month_name(offer.created_at)}\n"
                     f"📝 توضیحات: {offer.message or '—'}\n"
                 ),
                 reply_markup=build_offer_manage_keyboard(offer.id),
@@ -618,7 +620,7 @@ async def send_my_offers_list(message_obj, user: CustomUser, page: int, *, edit:
         f"🧾 پیشنهاد #{o.id}\n"
         f"💰 نرخ پیشنهادی: {o.unit_price_irt:,} تومان/واحد\n"
         f"📌 وضعیت پیشنهاد: {offer_status}\n"
-        f"🕒 {o.created_at.strftime('%Y/%m/%d %H:%M')}\n"
+        f"🕒 {jalali_with_month_name(offer.created_at)}\n"
     )
 
     note = (getattr(o, "message", "") or "").strip()
