@@ -125,7 +125,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📝 توضیحات: {offer.message if offer.message else '—'}\n\n"
                 f"شما در ازای پرداخت مبلغ {final_amount_text} ارز تومان با لحاظ مقدار کارمزد تعداد {amount_text} معامله خواهید کرد\n\n"
                 
-                " \nاین پیام را برای ادمین بفرستید تا ارتباط بین شما و درخواست دهنده را برقرار کنند"                
+                "این پیام را برای ادمین بفرستید تا ارتباط بین شما و درخواست دهنده را برقرار کنند\n"                
                 f" 💸 کارمزد: {fee_text} تومان\n"
             )
         )
