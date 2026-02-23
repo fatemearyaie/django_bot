@@ -32,8 +32,7 @@ from Trade.services.offers_service import (
     build_offer_manage_keyboard,
     build_offer_message,
 )
-from bot.flow.registration import get_or_create_user, is_profile_complete
-from bot.handlers import build_main_menu_keyboard
+from bot.flow.registration import get_or_create_user, is_profile_complete,build_main_menu_keyboard
 from decouple import config
 
 
