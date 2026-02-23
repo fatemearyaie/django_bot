@@ -228,7 +228,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
 
             text += (
                 f"\n\n— <b>پیشنهاد</b> #{o.id}"
-                f"\n👤 {sender_name}"
+                f"\n👤"
                 f"\n💰 {o.unit_price_irt:,} تومان"
                 f"\n📌 وضعیت: {_offer_status_fa(o.status)}"
                 + (f"\n📝 {o.message}" if o.message else "")

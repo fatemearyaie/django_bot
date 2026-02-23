@@ -69,19 +69,20 @@ def build_application(token: str):
     application.post_init = post_init
 
     application.add_handler(build_offer_conversation(), group=0)
-    application.add_handler(CommandHandler("start", start), group=1)
-    application.add_handler(build_registration_conversation(), group=2)
+    for h in get_currency_requests_handlers():
+        application.add_handler(h, group=1)
+    application.add_handler(CommandHandler("start", start), group=2)
+    application.add_handler(build_registration_conversation(), group=3)
 
     application.add_handler(
         MessageHandler(filters.TEXT & filters.Regex("^⁉️درباره ما$"), about_handler)
     )
-    for h in get_currency_requests_handlers():
+    for h in get_my_requests_handlers():
         application.add_handler(h)
 
     application.add_handler(get_trade_request_conversation())
 
-    for h in get_my_requests_handlers():
-        application.add_handler(h)
+
 
     application.add_handler(CallbackQueryHandler(offer_accept_cb, pattern=r"^offer_accept:\d+$"))
     application.add_handler(CallbackQueryHandler(offer_reject_cb, pattern=r"^offer_reject:\d+$"))
