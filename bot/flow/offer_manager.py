@@ -61,7 +61,6 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ accept + close
     await _accept_offer_and_close_request(offer)
 
-    # ✅ آپدیت پیام کانال + حذف دکمه پیشنهاد بده (چون req بسته شد)
     offer_label = f"💰 {offer.unit_price_irt:,} | 🕒 {offer.created_at.strftime('%Y/%m/%d %H:%M')}"
     await sync_to_async(set_offer_status_in_channel)(
         offer.request.id,

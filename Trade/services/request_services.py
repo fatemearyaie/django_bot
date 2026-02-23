@@ -21,10 +21,10 @@ def build_channel_post_text(req: TradeRequest) -> str:
 
     return (
         f"📌 درخواست {req.id} \n\n"
-        f"👤{role} {amount_text} {currency_fa}\n"
-        f"🏷 *قیمت هر واحد (تومان):* {unit_price_text}\n\n"
-        f"💳 *روش معامله:* {deal_method_fa}\n"
-        f"📝 توضیحات: {req.description or '—'}\n\n\n"
+        f"*👤{role} {amount_text} {currency_fa}*\n"
+        f"*🏷 قیمت هر واحد (تومان):* {unit_price_text}\n\n"
+        f"💳 روش معامله: {deal_method_fa}\n"
+        f"📝 توضیحات: {req.description or '—'}\n"
         "\n——————————————\n"
         "\nپیشنهادهای ارسال شده:"
     )
