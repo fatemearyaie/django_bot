@@ -16,23 +16,6 @@ from bot.flow.request import get_trade_request_conversation, get_my_requests_han
 from bot.flow.offer import build_offer_conversation, get_my_offers_handlers
 from bot.flow.usefull_links import get_useful_links_handlers
 
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    tg = update.effective_user
-    user = await get_or_create_user(tg.id, tg.username)
-
-    if not is_profile_complete(user):
-        await update.message.reply_text(
-            f"👋 سلام {tg.username}!\nبرای استفاده از ربات، لطفاً ثبت‌نام کن 👇",
-            reply_markup=build_register_inline_keyboard(),
-        )
-        return
-
-    await update.message.reply_text(
-        f"👋 سلام {tg.username}! خوش آمدی.",
-        reply_markup=build_main_menu_keyboard(),
-    )
-
 ABOUT_TEXT = """
 با سلام و احترام
 
@@ -57,6 +40,8 @@ ABOUT_TEXT = """
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.args and str(context.args[0]).startswith("offer_"):
+        return
     tg = update.effective_user
     user = await get_or_create_user(tg.id, tg.username)
 
