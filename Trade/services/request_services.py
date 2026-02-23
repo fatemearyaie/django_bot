@@ -19,7 +19,7 @@ def build_channel_post_text(req: TradeRequest) -> str:
     unit_price_text = f"{req.unit_price_irt:,}" if req.unit_price_irt is not None else "—"
 
     return (
-        "📌 درخواست {req.id} \n\n"
+        f"📌 درخواست {req.id} \n\n"
         f"👤{role} {amount_text} {req.currency}\n"
         f"🏷 *قیمت هر واحد (تومان):* {unit_price_text}\n\n"
         f"💳 *روش معامله:* {deal_method_fa}\n"
