@@ -7,7 +7,8 @@ from typing import Optional
 from asgiref.sync import sync_to_async
 from django.db.models import Q
 from Trade.services.offers_service import upsert_offer_line_in_channel
-
+import jdatetime
+from django.utils import timezone
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
@@ -48,6 +49,15 @@ BTN_CANCEL = "❌ انصراف"
 BTN_SEND = "✅ بله، ارسال کن"
 BTN_NO_NOTE = "📝 بدون توضیحات"
 
+def jalali_with_month_name(dt):
+    if not dt:
+        return "—"
+
+    dt = timezone.localtime(dt)  # مهم برای تایم‌زون
+    jdt = jdatetime.datetime.fromgregorian(datetime=dt)
+
+    month_name = jdt.strftime("%B")  # اسم ماه فارسی
+    return f"{jdt.day:02d} {month_name} {jdt.year} - {jdt.strftime('%H:%M')}"
 
 @sync_to_async
 def _get_sender_last_offer_price(sender_id: int, request_id: int) -> int | None:
@@ -451,7 +461,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return ConversationHandler.END
 
     try:
-        offer_label = f"  {offer.unit_price_irt:,} | 🕒 {offer.created_at.strftime('%Y/%m/%d %H:%M')}"
+        offer_label = f"  {offer.unit_price_irt:,} | 🕒 {jalali_with_month_name(offer.created_at)}"
         await sync_to_async(upsert_offer_line_in_channel)(
             req.id,
             offer.id,
