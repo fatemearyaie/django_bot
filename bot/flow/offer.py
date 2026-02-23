@@ -451,7 +451,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return ConversationHandler.END
 
     try:
-        offer_label = f"💰 {offer.unit_price_irt:,} | 🕒 {offer.created_at.strftime('%Y/%m/%d %H:%M')}"
+        offer_label = f"{offer.unit_price_irt:,} | 🕒 {offer.created_at.strftime('%Y/%m/%d %H:%M')}"
         await sync_to_async(upsert_offer_line_in_channel)(
             req.id,
             offer.id,
