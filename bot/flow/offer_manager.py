@@ -62,7 +62,10 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ accept + close
     await _accept_offer_and_close_request(offer)
 
-    offer_label = f"💰 {offer.unit_price_irt:,} | 🕒 {offer.created_at.strftime('%Y/%m/%d %H:%M')}"
+    offer_label = (
+        f"{offer.unit_price_irt:,} تومان "
+        f"در {jalali_with_month_name(offer.created_at)}"
+    )
     await sync_to_async(set_offer_status_in_channel)(
         offer.request.id,
         offer.id,
