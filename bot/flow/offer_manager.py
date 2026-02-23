@@ -109,6 +109,8 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # ✅ اضافه شد: متن نمایشی مبلغ نهایی
         final_amount_text = f"{final_amount:,}" if isinstance(final_amount, int) else "—"
+        # ✅ اضافه شد: کارمزد با جداکننده
+        fee_text = f"{fee_val:,}"
 
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
@@ -121,8 +123,8 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🕒 زمان ثبت پیشنهاد: {created_at_text}\n"
                 f"🔁 روش معامله: `{method_text}`\n"
                 f"📝 توضیحات: {offer.message if offer.message else '—'}\n\n"
-                f"شما در ازای پرداخت مبلغ {final_amount} تومان با لحاظ کارمز تعداد {amount_text} معامله خواهید کرد\n"
-                f"> 💸 کارمزد: {FEE} تومان\n"
+                f"شما در ازای پرداخت مبلغ {final_amount_text} تومان با لحاظ کارمزد تعداد {amount_text} معامله خواهید کرد\n\n"
+                f" 💸 کارمزد: {fee_text} تومان\n"
             )
         )
     except Exception:
