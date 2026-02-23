@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
-
+from decouple import config
 from django.db import transaction
 
 from Trade.models.models import TradeOffer, TradeRequest
@@ -12,6 +12,7 @@ from Trade.services.offers_service import (
     channel_post_link,
 )
 
+FEE = config("TRADE_REQUEST_FEE")
 
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
@@ -88,18 +89,40 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         created_at = getattr(offer, "created_at", None)
         created_at_text = created_at.strftime("%Y/%m/%d %H:%M") if created_at else "—"
 
+        # ✅ اضافه شد: مقدار عددی amount برای محاسبه
+        amount_val = getattr(req, "amount", None)
+
+        # ✅ اضافه شد: FEE اگر تعریف نشده/None بود کرش نکنه
+        try:
+            fee_val = int(FEE)
+        except Exception:
+            fee_val = 0
+
+        # ✅ اضافه شد: محاسبه امن مبلغ نهایی
+        final_amount = None
+        try:
+            if price_val is not None and amount_val is not None:
+                # اگر amount Decimal باشه هم کار می‌کنه
+                final_amount = int(price_val * float(amount_val)) + fee_val
+        except Exception:
+            final_amount = None
+
+        # ✅ اضافه شد: متن نمایشی مبلغ نهایی
+        final_amount_text = f"{final_amount:,}" if isinstance(final_amount, int) else "—"
+
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
             parse_mode="Markdown",
             text=(
-                "✅ *پیشنهاد شما تایید شد*\n\n"
-                f"📌 آگهی: {ad_text}\n"
-                f"🔁 روش معامله: `{method_text}`\n"
+                "✅ *توافق جدید*\n\n"
+                f" 📌شماره حواله {ad_text}\n"
                 f"📦 مقدار: {amount_text}\n"
                 f"💰 مبلغ/نرخ پیشنهاد: {price_text} تومان\n"
                 f"🕒 زمان ثبت پیشنهاد: {created_at_text}\n"
+                f"🔁 روش معامله: `{method_text}`\n"
                 f"📝 توضیحات: {offer.message if offer.message else '—'}\n\n"
-                "این پیام را برای ادمین ارسال کنید تا ارتباط برقرار شود."
+                f"شما در ازای پرداخت مبلغ {final_amount} تومان با لحاظ کارمز تعداد {amount_text} معامله خواهید کرد\n"
+                f"> 💸 کارمزد: {FEE} تومان\n"
             )
         )
     except Exception:
