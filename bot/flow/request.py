@@ -215,7 +215,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         f"💳 روش معامله: {r.get_deal_method_display()}\n"
         f"📝 توضیحات: {r.description or '—'}\n"
         f"📌 وضعیت: {_req_status_fa(r.status)}\n"
-        "\n—————————————————————\n"
+        "—————————————————————\n"
         f"📨 <b>پیشنهادها</b> ({len(offers)})"
     )
 
