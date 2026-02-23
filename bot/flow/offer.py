@@ -675,6 +675,7 @@ def build_offer_conversation() -> ConversationHandler:
             CommandHandler(
                 "start",
                 offer_start_entry,
+                filters=filters.Regex(r"^/start\s+offer_\d+\s*$"),
             )
         ],
         states={
