@@ -221,22 +221,18 @@ def _offer_preview(d: OfferDraft) -> str:
         "مطمئنی می‌خوای ارسال بشه؟"
     )
 
-
 async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
     tg = update.effective_user
     if not msg or not tg:
         return ConversationHandler.END
 
+    # args must be like: offer_123
     if not context.args:
         return ConversationHandler.END
-    arg = context.args[0]
 
-    if not arg.startwith("offer_"):
-        return ConversationHandler.END
-    request_id = int(arg.split("_")[1])
-
-    m = START_OFFER_RE.match(str(context.args[0]).strip())
+    arg = str(context.args[0]).strip()
+    m = START_OFFER_RE.match(arg)
     if not m:
         return ConversationHandler.END
 
@@ -268,6 +264,12 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             reply_markup=_main_menu_kb(),
         )
         return ConversationHandler.END
+    except Exception:
+        await msg.reply_text(
+            "❌ خطا در دریافت درخواست. دوباره تلاش کن.",
+            reply_markup=_main_menu_kb(),
+        )
+        return ConversationHandler.END
 
     req_rate = int(req.unit_price_irt) if req.unit_price_irt is not None else None
 
@@ -287,7 +289,6 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         reply_markup=_rk_with_cancel(rows),
     )
     return RATE
-
 
 async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
