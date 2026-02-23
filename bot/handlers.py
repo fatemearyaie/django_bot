@@ -91,8 +91,9 @@ def build_application(token: str):
     for h in get_currency_requests_handlers():
         application.add_handler(h)
 
-    application.add_handler(build_offer_conversation())
+
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(build_offer_conversation())
 
     application.add_handler(get_trade_request_conversation())
 

@@ -66,7 +66,7 @@ def _emoji_for(status: str) -> str:
 
 
 def _render_offer_line(offer_id: int, offer_name: str, status: str) -> str:
-    return f"{_emoji_for(status)} {offer_name} [{offer_id}]".strip()
+    return f"{_emoji_for(status)} [{offer_id}]{offer_name}".strip()
 
 def _normalize_line_text(s: str) -> str:
     if not s:
