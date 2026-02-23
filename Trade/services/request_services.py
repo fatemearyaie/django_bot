@@ -26,6 +26,7 @@ def build_channel_post_text(req: TradeRequest) -> str:
         f"💳 *روش معامله:* {deal_method_fa}\n"
         f"📝 توضیحات: {req.description or '—'}\n\n\n"
         "\n——————————————\n\n"
+        "\nپیشنهادهای ارسال شده:"
     )
 
 def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
