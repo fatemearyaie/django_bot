@@ -389,7 +389,7 @@ def map_role(text: str) -> str | None:
 
 def map_method(text: str) -> str | None:
     t = (text or "").strip()
-    if t == "انتقال آنی (پی پال)":
+    if t == "انتقال آنی":
         return TradeRequest.DealMethod.PAYPAL
     if t == "حواله بانکی":
         return TradeRequest.DealMethod.TRANSFER
@@ -458,27 +458,27 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data["tr_edit_field"] = action
 
     if action == "role":
-        await q.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
+        await q.message.reply_text("⬅ خریدار یا فروشنده ارز هستین؟", reply_markup=side_key)
         return TR_EDIT_VALUE
 
     if action == "currency":
-        await q.message.reply_text("💱 ارز مورد نظرت چیه؟", reply_markup=currency_key)
+        await q.message.reply_text("⬅ نوع ارز درخواستی خود را مشخص کنید:", reply_markup=currency_key)
         return TR_EDIT_VALUE
 
     if action == "amount":
-        await q.message.reply_text("💰 مقدار ارز مد نظرت رو انتخاب کن یا مقدار ارز رو وارد کن", reply_markup=amount_key)
+        await q.message.reply_text("⬅ مقدار ارز رو انتخاب کنید یا مقدار ارز مد نظرتون رو وارد کنید.", reply_markup=amount_key)
         return TR_EDIT_VALUE
 
     if action == "unit_price_irt":
-        await q.message.reply_text("🏷 قیمت برای هر واحد ارز به تومان رو وارد کن (فقط عدد):", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text("⬅ نرخ پیشنهادی شما برای هر ارز مد نظرتون چند تومان است؟", reply_markup=ReplyKeyboardRemove())
         return TR_EDIT_VALUE
 
     if action == "deal_method":
-        await q.message.reply_text("🔁 روش معاملت چیه؟", reply_markup=method_key)
+        await q.message.reply_text("⬅ روش انجام معامله موردنظر شما کدام است؟", reply_markup=method_key)
         return TR_EDIT_VALUE
 
     if action == "description":
-        await q.message.reply_text("📝 توضیحاتی داری؟", reply_markup=no_desc_key)
+        await q.message.reply_text("⬅ در صورت تمایل، توضیحات تکمیلی خود را در این بخش وارد کنید:", reply_markup=no_desc_key)
         return TR_EDIT_VALUE
 
     await q.message.reply_text("❌ گزینه نامعتبر.")

@@ -70,9 +70,8 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
             if req.owner and req.owner.telegram_id:
                 async_to_sync(bot.send_message)(
                     chat_id=req.owner.telegram_id,
-                    text=f"✅ درخواست شما (#{req.id}) منتشر شد و در کانال نمایش داده شد اگر احتیاج به حذف یا ویرایش داری با ادمین تماس بگیر.",
+                    text=f"📄 درخواست شما با کد پیگیری (#{req.id}) در کانال منتشر شد.\nدر صورت نیاز به ویرایش یا حذف، لطفاً با پشتیبانی هماهنگ کنید.",
                     reply_markup=build_main_menu_keyboard(),
-
                 )
         except Exception as e:
             print("TELEGRAM owner notify ERROR:", type(e), repr(e))

@@ -16,7 +16,7 @@ class TradeRequest(models.Model):
         AED = "AED", "درهم"
 
     class DealMethod(models.TextChoices):
-        PAYPAL = "paypal", "انتقال آنی(پی‌پال)"
+        PAYPAL = "paypal", "انتقال آنی"
         TRANSFER = "transfer", "حواله بانکی"
         MASTER = "master card", "مستر کارت"
         OTHER = "other", "سایر"
