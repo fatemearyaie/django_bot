@@ -631,7 +631,7 @@ async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_ROLE
 
     context.user_data["tr"]["role"] = role
-    await update.message.reply_text("💱 ارز مورد نظرت چیه؟", reply_markup=currency_key)
+    await update.message.reply_text("⬅ نوع ارز درخواستی خود را مشخص کنید:", reply_markup=currency_key)
     return TR_CURRENCY
 
 
