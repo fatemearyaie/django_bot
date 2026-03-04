@@ -17,7 +17,7 @@ services:
     networks:
       - bot-network
     extra_hosts:
-      - "host.docker.internal:172.17.0.1"
+      - "host.docker.internal:172.28.0.1"
     command: >
       gunicorn TestBot.asgi:application
           -k uvicorn.workers.UvicornWorker
@@ -35,7 +35,7 @@ services:
     volumes:
       - .:/app
     extra_hosts:
-      - "host.docker.internal:172.17.0.1"
+      - "host.docker.internal:172.28.0.1"
     networks:
       - bot-network
     env_file:
