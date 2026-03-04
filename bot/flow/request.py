@@ -67,7 +67,7 @@ currency_key = ReplyKeyboardMarkup(
 
 method_key = ReplyKeyboardMarkup(
     [
-        [KeyboardButton("انتقال آنی (پی پال)"), KeyboardButton("حواله بانکی")],
+        [KeyboardButton("انتقال آنی"), KeyboardButton("حواله بانکی")],
         [KeyboardButton("سایر"), KeyboardButton("مسترکارت")]
     ],
     resize_keyboard=True,
@@ -106,7 +106,7 @@ def build_edit_request_inline_keyboard_v2():
             [InlineKeyboardButton("💰 اصلاح مقدار", callback_data="req_edit:amount")],
             [InlineKeyboardButton("🏷 اصلاح قیمت هر واحد", callback_data="req_edit:unit_price_irt")],
             [InlineKeyboardButton("💳 اصلاح روش معامله", callback_data="req_edit:deal_method")],
-            [InlineKeyboardButton("📝 اصلاح توضیحات", callback_data="req_edit:description")],
+            [InlineKeyboardButton("🪧 اصلاح توضیحات", callback_data="req_edit:description")],
             [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit:back")],
         ]
     )
@@ -131,7 +131,7 @@ def _req_status_fa(status: str) -> str:
     mapping = {
         TradeRequest.Status.DRAFT: "پیش‌نویس",
         TradeRequest.Status.PENDING_ADMIN: "در انتظار تایید ادمین",
-        TradeRequest.Status.APPROVED: "✅ فعال",
+        TradeRequest.Status.APPROVED: "♻ فعال",
         TradeRequest.Status.CLOSED: "⛔️ بسته شده",
     }
     return mapping.get(status, status)
@@ -213,7 +213,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         f"💰 مقدار: {r.amount}\n"
         f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
         f"💳 روش معامله: {r.get_deal_method_display()}\n"
-        f"📝 توضیحات: {r.description or '—'}\n"
+        f"🪧 توضیحات: {r.description or '—'}\n"
         f"📌 وضعیت: {_req_status_fa(r.status)}\n"
         "—————————————————————\n"
         f"📨 <b>پیشنهادها</b> ({len(offers)})"
@@ -224,8 +224,6 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
     else:
         shown = offers[:25]
         for o in shown:
-            sender_name = (o.sender.name or o.sender.username or "—")
-
             text += (
                 f"\n\n— <b>پیشنهاد</b> #{o.id}"
                 f"\n👤"
@@ -434,8 +432,8 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
         f"💱 ارز: {data['currency']}\n"
         f"💰 مقدار: {data['amount']}\n"
         f"🏷 قیمت هر واحد (تومان): {data['unit_price_irt']}\n"
-        f"🔁 روش معامله: {deal_method_fa(data['deal_method'])}\n"
-        f"📝 توضیحات: {data['description'] or '—'}\n\n"
+        f"🪧 نوع حواله: {deal_method_fa(data['deal_method'])}\n"
+        f"🪧 توضیحات: {data['description'] or '—'}\n\n"
         "\n✅ از ارسال مطمئنی؟"
     )
     await message_obj.reply_text(
@@ -615,7 +613,7 @@ async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tr"] = {}
     context.user_data.pop("editing_req_id", None)
 
-    await update.message.reply_text("✅ خریدار هستی یا فروشنده؟", reply_markup=side_key)
+    await update.message.reply_text("⬅ خریدار یا فروشنده ارز هستین؟", reply_markup=side_key)
     return TR_ROLE
 
 
@@ -638,7 +636,7 @@ async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_CURRENCY
 
     context.user_data["tr"]["currency"] = cur
-    await update.message.reply_text("💰 مقدار ارز رو انتخاب کن یا مقدار ارز مد نظرت رو وارد کن", reply_markup=amount_key)
+    await update.message.reply_text("⬅ مقدار ارز رو انتخاب کنید یا مقدار ارز مد نظرتون رو وارد کنید.", reply_markup=amount_key)
     return TR_AMOUNT
 
 
@@ -651,7 +649,7 @@ async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["tr"]["amount"] = amount
 
     await update.message.reply_text(
-        "🏷 قیمت برای هر واحد ارز به تومان را وارد کن (فقط عدد):",
+        "⬅ نرخ پیشنهادی شما برای هر ارز مد نظرتون چند تومان است؟",
         reply_markup=ReplyKeyboardRemove(),
     )
     return TR_UNIT_PRICE
@@ -664,7 +662,7 @@ async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TR_UNIT_PRICE
 
     context.user_data["tr"]["unit_price_irt"] = unit_price
-    await update.message.reply_text("🔁 روش معاملت چیه؟", reply_markup=method_key)
+    await update.message.reply_text("⬅ روش انجام معامله موردنظر شما کدام است؟", reply_markup=method_key)
     return TR_METHOD
 
 
@@ -676,7 +674,7 @@ async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["tr"]["deal_method"] = method
     await update.message.reply_text(
-        "📝 توضیحاتی داری؟ (اگر نداری «📝 بدون توضیحات» رو بزن)",
+        "⬅ در صورت تمایل، توضیحات تکمیلی خود را در این بخش وارد کنید:",
         reply_markup=no_desc_key,
     )
     return TR_DESC

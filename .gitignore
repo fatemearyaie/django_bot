@@ -39,3 +39,6 @@ auth_service.py
 
 
 celerybeat-schedule
+
+
+emoji.txt
