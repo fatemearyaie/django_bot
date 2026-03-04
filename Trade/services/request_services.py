@@ -16,17 +16,17 @@ def build_channel_post_text(req: TradeRequest) -> str:
     currency_fa = req.get_currency_display() if getattr(req, "currency", None) else "—"
 
     amount_text = f"{req.amount:,}" if req.amount is not None else "—"
-
     unit_price_text = f"{req.unit_price_irt:,}" if req.unit_price_irt is not None else "—"
 
+    role_tag = "#خرید" if req.role == TradeRequest.Role.BUYER else "#فروش"
+    role_label = "خرید" if req.role == TradeRequest.Role.BUYER else "فروش"
+
     return (
-        f"📌 درخواست {req.id} \n\n"
-        f"*👤{role} {amount_text} {currency_fa}*\n"
-        f"*🏷 قیمت هر واحد (تومان):* {unit_price_text}\n\n"
-        f"💳 روش معامله: {deal_method_fa}\n"
-        f"📝 توضیحات: {req.description or '—'}\n"
-        "\n——————————————\n"
-        "\nپیشنهادهای ارسال شده:"
+        f"📌 درخواست {req.id} | بابت {role_tag} #{currency_fa}\n\n"
+        f"🟢  {role_label} : {amount_text} {currency_fa}\n\n"
+        f"💬 نرخ پیشنهادی: {unit_price_text} تومان\n\n"
+        f" 🪧 نوع حواله: {deal_method_fa}\n\n\n"
+        f"        ..........................................................."
     )
 
 def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:

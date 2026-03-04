@@ -172,11 +172,15 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     offer.status = TradeOffer.Status.REJECTED
     await sync_to_async(offer.save)(update_fields=["status"])
 
-    offer_name = offer.sender.name or offer.sender.username or ""
+    offer_label = (
+        f"{offer.unit_price_irt:,} تومان "
+        f"در {jalali_with_month_name(offer.created_at)}"
+    )
+
     await sync_to_async(set_offer_status_in_channel)(
         offer.request.id,
         offer.id,
-        offer_name,
+        offer_label,
         "REJECTED"
     )
 
