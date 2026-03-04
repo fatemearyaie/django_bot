@@ -426,15 +426,22 @@ def get_fee_irt() -> int:
 async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get("tr", {})
 
+    role_is_buy = data["role"] == TradeRequest.Role.BUYER
+    dot = "🟢" if role_is_buy else "🔴"
+    role_fa = "خرید" if role_is_buy else "فروش"
+
+    try:
+        currency_fa = TradeRequest.Currency(data["currency"]).label
+    except ValueError:
+        currency_fa = str(data["currency"])
+
     preview = (
         "🧾 *پیش‌نمایش درخواست شما*\n\n"
-        f"👤 نقش: {'خریدار' if data['role'] == TradeRequest.Role.BUYER else 'فروشنده'}\n"
-        f"💱 ارز: {data['currency']}\n"
-        f"💰 مقدار: {data['amount']}\n"
-        f"🏷 قیمت هر واحد (تومان): {data['unit_price_irt']}\n"
-        f"🪧 نوع حواله: {deal_method_fa(data['deal_method'])}\n"
-        f"🪧 توضیحات: {data['description'] or '—'}\n\n"
-        "\n✅ از ارسال مطمئنی؟"
+        f"*{dot}   {role_fa} : {data['amount']} {currency_fa}*\n\n"
+        f"*💬 نرخ پیشنهادی: {data['unit_price_irt']} تومان*\n\n"
+        f" 🪧 نوع حواله: {deal_method_fa(data['deal_method'])}  \n"
+        f" 🪧 توضیحات درخواست: {data['description'] or '—'}\n\n"
+        "✅ از ارسال مطمئنی؟"
     )
     await message_obj.reply_text(
         preview,
