@@ -3,7 +3,10 @@ import re
 from asgiref.sync import async_to_sync
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.error import TelegramError
+from html import escape as _html_escape
 
+def _escape_html(s: str) -> str:
+    return _html_escape(s or "")
 from Trade.models.models import TradeRequest
 
 BOT_USERNAME = "excoinmarket_bot"
@@ -14,8 +17,8 @@ STATUS_EMOJI = {
     "REJECTED": "❌",
 }
 
-MARKER = "👥 *پیشنهاددهنده‌ها:*"
-
+MARKER = "پیشنهادهای ارسال شده:"
+FOOTER_PREFIX = "🆔 آیدی کانال:"
 
 # -----------------------
 # Keyboards
@@ -43,7 +46,17 @@ def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("💬 پیشنهاد بده", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
     ])
 
-
+def _escape_md(s: str) -> str:
+    if not s:
+        return ""
+    # Telegram Markdown (legacy): these chars break formatting
+    return (
+        s.replace("\\", "\\\\")
+         .replace("_", "\\_")
+         .replace("*", "\\*")
+         .replace("[", "\\[")
+         .replace("`", "\\`")
+    )
 # -----------------------
 # Messages
 # -----------------------
@@ -65,7 +78,7 @@ def _emoji_for(status: str) -> str:
 
 
 def _render_offer_line(offer_id: int, offer_name: str, status: str) -> str:
-    return f"{_emoji_for(status)}{offer_name}".strip()
+    return f"{_emoji_for(status)} {_escape_html(offer_name)}"
 
 def _normalize_line_text(s: str) -> str:
     if not s:
@@ -92,14 +105,41 @@ def _extract_offer_id(line: str) -> int | None:
         return None
 
 
-def _split_base_text(base_text: str) -> tuple[str, list[str]]:
+def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
+    def _pop_footer_from_lines(lines: list[str]) -> tuple[list[str], str]:
+        # آخرین خط غیرخالی اگر فوتر بود جداش کن
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if lines and lines[-1].strip().startswith(FOOTER_PREFIX):
+            return lines[:-1], lines[-1].strip()
+        return lines, ""
+
+    base_text = (base_text or "").strip()
+    if not base_text:
+        return "", [], ""
+
+    # --- حالت 1: مارکر هنوز وجود ندارد (پست اولیه) ---
     if MARKER not in base_text:
-        return base_text.rstrip(), []
+        # ممکنه فوتر تهِ متن اولیه چسبیده باشد → جداش کن
+        lines = [ln.rstrip() for ln in base_text.splitlines()]
+        lines, footer = _pop_footer_from_lines(lines)
+        head = "\n".join([ln for ln in lines]).rstrip()
+        return head, [], footer
 
+    # --- حالت 2: مارکر وجود دارد ---
     head, tail = base_text.split(MARKER, 1)
-    lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
-    return head.rstrip(), lines
 
+    # فوتر ممکنه اشتباهاً ته head مانده باشد (از همان مشکل قبلی) → جداش کن
+    head_lines = [ln.rstrip() for ln in head.rstrip().splitlines()]
+    head_lines, footer1 = _pop_footer_from_lines(head_lines)
+    head_clean = "\n".join(head_lines).rstrip()
+
+    # خطوط پیشنهادها از tail
+    lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
+    lines, footer2 = _pop_footer_from_lines(lines)
+
+    footer = footer2 or footer1
+    return head_clean.rstrip(), lines, footer
 
 # -----------------------
 # Core: Upsert
@@ -126,7 +166,9 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
 
     new_line = _render_offer_line(offer_id=offer_id, offer_name=offer_name, status=status)
 
-    head, lines = _split_base_text(base_text)
+    head, lines, footer = _split_base_text(base_text)
+    if not footer:
+        footer = "ثبت درخواست جدید ⬅️ @Excoinmarket_bot"
 
     found = False
     for i, ln in enumerate(lines):
@@ -162,9 +204,9 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
     lines = list(reversed(deduped))
 
     if lines:
-        new_text = head + "\n\n" + MARKER + "\n" + "\n".join(lines) + "\n"
+        new_text = head + "\n\n" + MARKER + "\n" + "\n".join(lines) + "\n\n" + footer + "\n"
     else:
-        new_text = head
+        new_text = head + "\n\n" + MARKER + "\n\n" + footer + "\n"
 
     bot = Bot(token=token)
 
@@ -173,7 +215,7 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
             chat_id=req.channel_chat_id,
             message_id=req.channel_message_id,
             text=new_text,
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=None if req.status == TradeRequest.Status.CLOSED else build_channel_keyboard(req.id),
             disable_web_page_preview=True,
         )

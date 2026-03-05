@@ -7,6 +7,7 @@ from bot.flow.registration import build_main_menu_keyboard
 
 CHANNEL = "@excoinmarket"          # یا بهتر: channel id عددی
 BOT_USERNAME = "excoinmarket_bot"
+FOOTER_PREFIX = "ثبت درخواست جدید ⬅️"
 
 
 def build_channel_post_text(req: TradeRequest) -> str:

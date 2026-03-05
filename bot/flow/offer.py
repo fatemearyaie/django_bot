@@ -459,19 +459,22 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await msg.reply_text("❌ خطا در ثبت پیشنهاد. لطفاً دوباره تلاش کن.", reply_markup=_main_menu_kb())
         return ConversationHandler.END
 
+    offer_label = (
+        f"{offer.unit_price_irt:,} تومان "
+        f"در {jalali_with_month_name(offer.created_at)}"
+    )
+
     try:
-        offer_label = (
-            f"{offer.unit_price_irt:,} تومان "
-            f"در {jalali_with_month_name(offer.created_at)}"
-        )
-        await sync_to_async(upsert_offer_line_in_channel)(
+        ok = await sync_to_async(upsert_offer_line_in_channel)(
             req.id,
             offer.id,
             offer_label,
-            "PENDING"
+            "PENDING",
         )
-    except Exception:
-        pass
+        if not ok:
+            raise Exception("upsert_offer_line_in_channel returned False")
+    except Exception as e:
+        await msg.reply_text(f"❌ خطا در آپدیت پیام کانال: {e}")
 
     try:
         method_text = req.get_deal_method_display() if req.deal_method else "—"
