@@ -9,7 +9,7 @@ from Trade.models.models import TradeRequest
 BOT_USERNAME = "excoinmarket_bot"
 
 STATUS_EMOJI = {
-    "PENDING": "📥",
+    "PENDING": "📩",
     "ACCEPTED": "✅",
     "REJECTED": "❌",
 }
