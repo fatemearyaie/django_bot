@@ -10,7 +10,11 @@ BOT_USERNAME = "excoinmarket_bot"
 
 
 def build_channel_post_text(req: TradeRequest) -> str:
-    role = "خریدار" if req.role == TradeRequest.Role.BUYER else "فروشنده"
+    is_buyer = req.role == TradeRequest.Role.BUYER
+
+    role_tag = "#خرید" if is_buyer else "#فروش"
+    role_label = "خرید" if is_buyer else "فروش"
+    role_dot = "🟢" if is_buyer else "🔴"
 
     deal_method_fa = req.get_deal_method_display() if getattr(req, "deal_method", None) else "—"
     currency_fa = req.get_currency_display() if getattr(req, "currency", None) else "—"
@@ -18,20 +22,25 @@ def build_channel_post_text(req: TradeRequest) -> str:
     amount_text = f"{req.amount:,}" if req.amount is not None else "—"
     unit_price_text = f"{req.unit_price_irt:,}" if req.unit_price_irt is not None else "—"
 
-    role_tag = "#خرید" if req.role == TradeRequest.Role.BUYER else "#فروش"
-    role_label = "خرید" if req.role == TradeRequest.Role.BUYER else "فروش"
+    desc = (req.description or "").strip()
+    desc_line = f"📝 توضیحات: {desc}" if desc else ""
+
+    ONE_BLANK = "\n\u200b\n"
+    TWO_BLANKS = "\n\u200b\n\u200b\n"
+
+    tail = f"\n{desc_line}{TWO_BLANKS}" if desc else TWO_BLANKS
 
     return (
         f"📌 درخواست {req.id} | بابت {role_tag} #{currency_fa}\n\n"
-        f"🟢  {role_label} : {amount_text} {currency_fa}\n\n"
+        f"{role_dot}  {role_label} : {amount_text} {currency_fa}\n\n"
         f"💬 نرخ پیشنهادی: {unit_price_text} تومان\n\n"
-        f" 🪧 نوع حواله: {deal_method_fa}\n\n\n"
-        f"        ..........................................................."
+        f" 🪧 نوع حواله: {deal_method_fa}"
+        f"{tail}"
     )
 
 def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 پیشنهاد بده", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
+        [InlineKeyboardButton(" ثبت پیشنهاد 💬", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
     ])
 
 
