@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Optional
-
+from telegram.constants import ParseMode
+from html import escape
 from asgiref.sync import sync_to_async
 from django.db.models import Q
 from Trade.services.offers_service import upsert_offer_line_in_channel
@@ -48,6 +49,8 @@ BTN_CANCEL = "❌ انصراف"
 BTN_SEND = "✅ بله، ارسال کن"
 BTN_NO_NOTE = "📝 بدون توضیحات"
 
+def channel_post_url(channel_username: str, message_id: int) -> str:
+    return f"https://t.me/{channel_username.lstrip('@')}/{message_id}"
 
 jdatetime.set_locale("fa_IR")
 def jalali_with_month_name(dt):
@@ -298,14 +301,29 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         request_title=_req_title(req),
     )
 
+
     rows = [[f"✅ نرخ درخواست فروشنده/خریدار را تایید می‌کنم ({req_rate})"]] if req_rate is not None else []
+
+    role_fa = "فروش" if req.role == TradeRequest.Role.SELLER else "خرید"
+    currency_fa = req.get_currency_display() if getattr(req, "currency", None) else (req.currency or "—")
+    short_title = f"{role_fa} {currency_fa}"  # مثلا: "فروشنده USD"
+
+    channel_msg_id = req.channel_message_id
+    if channel_msg_id:
+        url = channel_post_url(REQUIRED_CHANNEL, int(channel_msg_id))
+        linked_id = f'<a href="{url}">#{req.id}</a>'
+    else:
+        linked_id = f"#{req.id}"
+
     await msg.reply_text(
-        f"داری برای «{_req_title(req)}» پیشنهاد می‌دی.\n\n"
-        "یا نرخ پیشنهادی‌ت برای هر واحد ارز رو وارد کن"
-        + ("، یا نرخ همین درخواست رو تایید کن:" if req_rate is not None else ":"),
+        "در حال ارسال پیشنهاد برای درخواست "
+        f"{linked_id} | <b>{short_title}</b>\n"
+        "نرخ پیشنهادی خود را وارد کنید\n"
+        "یا قیمت درج‌شده را تأیید نمایید.",
         reply_markup=_rk_with_cancel(rows),
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
     )
-    return RATE
 
 async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message

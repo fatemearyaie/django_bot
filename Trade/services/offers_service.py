@@ -43,7 +43,7 @@ def build_offer_after_accept_keyboard(offer_id: int) -> InlineKeyboardMarkup:
 
 def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💬 پیشنهاد بده", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
+        [InlineKeyboardButton(" ثبت پیشنهاد 💬", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
     ])
 
 def _escape_md(s: str) -> str:

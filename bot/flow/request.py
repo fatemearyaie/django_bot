@@ -483,7 +483,11 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "description":
-        await q.message.reply_text("⬅ در صورت تمایل، توضیحات تکمیلی خود را در این بخش وارد کنید:", reply_markup=no_desc_key)
+        await q.message.reply_text(
+            "در صورت تمایل، توضیحات تکمیلی خود را وارد کنید؛\n"
+            "در غیر این صورت گزینه «بدون توضیحات» را انتخاب نمایید.",
+            reply_markup=no_desc_key,
+        )
         return TR_EDIT_VALUE
 
     await q.message.reply_text("❌ گزینه نامعتبر.")
