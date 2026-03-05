@@ -324,6 +324,7 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
+    return RATE
 
 async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message

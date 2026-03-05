@@ -77,7 +77,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         req = offer.request
         link = channel_post_link(req)
-        ad_text = f"[مشاهده آگهی]({link})" if link else f"#{req.id}"
+        ad_text = f"[مشاهده جزئیات حواله]({link})" if link else f"#{req.id}"
 
         method_value = getattr(req, "deal_method", None)
         method_text = dict(TradeRequest.DealMethod.choices).get(method_value,str(method_value)) if method_value else "—"
@@ -120,8 +120,8 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=offer.sender.telegram_id,
             parse_mode="Markdown",
             text=(
-                "✅ *توافق جدید*\n\n"
-                f" 📌شماره حواله {ad_text}\n"
+                "✅ *توافق جدید ثبت شد*\n\n"
+                f" مشاهده جزئیات حواله {ad_text}\n"
                 f"📦 مقدار: {amount_text}\n"
                 f"💰 مبلغ/نرخ پیشنهاد: {price_text} تومان\n"
                 f"🕒 زمان ثبت پیشنهاد: {created_at_text}\n"

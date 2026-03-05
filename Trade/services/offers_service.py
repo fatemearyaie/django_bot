@@ -107,12 +107,21 @@ def _extract_offer_id(line: str) -> int | None:
 
 def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
     def _pop_footer_from_lines(lines: list[str]) -> tuple[list[str], str]:
-        # آخرین خط غیرخالی اگر فوتر بود جداش کن
+        # trim trailing blanks
         while lines and not lines[-1].strip():
             lines.pop()
-        if lines and lines[-1].strip().startswith(FOOTER_PREFIX):
-            return lines[:-1], lines[-1].strip()
-        return lines, ""
+
+        footer_line = ""
+
+        # اگر چند بار پشت سر هم فوتر تکرار شده بود، همه‌ش رو بردار
+        while lines and lines[-1].strip().startswith(FOOTER_PREFIX):
+            footer_line = lines.pop().strip()  # آخرین نمونه را نگه می‌داریم
+
+            # دوباره trim (اگر بین فوترها خط خالی افتاده)
+            while lines and not lines[-1].strip():
+                lines.pop()
+
+        return lines, footer_line
 
     base_text = (base_text or "").strip()
     if not base_text:
@@ -120,7 +129,6 @@ def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
 
     # --- حالت 1: مارکر هنوز وجود ندارد (پست اولیه) ---
     if MARKER not in base_text:
-        # ممکنه فوتر تهِ متن اولیه چسبیده باشد → جداش کن
         lines = [ln.rstrip() for ln in base_text.splitlines()]
         lines, footer = _pop_footer_from_lines(lines)
         head = "\n".join([ln for ln in lines]).rstrip()
@@ -129,18 +137,15 @@ def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
     # --- حالت 2: مارکر وجود دارد ---
     head, tail = base_text.split(MARKER, 1)
 
-    # فوتر ممکنه اشتباهاً ته head مانده باشد (از همان مشکل قبلی) → جداش کن
     head_lines = [ln.rstrip() for ln in head.rstrip().splitlines()]
     head_lines, footer1 = _pop_footer_from_lines(head_lines)
     head_clean = "\n".join(head_lines).rstrip()
 
-    # خطوط پیشنهادها از tail
     lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
     lines, footer2 = _pop_footer_from_lines(lines)
 
     footer = footer2 or footer1
     return head_clean.rstrip(), lines, footer
-
 # -----------------------
 # Core: Upsert
 # -----------------------
