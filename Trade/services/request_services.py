@@ -32,8 +32,8 @@ def build_channel_post_text(req: TradeRequest) -> str:
 
     return (
         f"📌 درخواست {req.id} | بابت {role_tag} #{currency_fa}\n\n"
-        f"{role_dot}  {role_label} : {amount_text} {currency_fa}\n\n"
-        f"💬 نرخ پیشنهادی: {unit_price_text} تومان\n\n"
+        f"*{role_dot}  {role_label} : {amount_text} {currency_fa}*\n\n"
+        f"*💬 نرخ پیشنهادی: {unit_price_text} تومان*\n\n"
         f" 🪧 نوع حواله: {deal_method_fa}"
         f"{tail}"
     )
