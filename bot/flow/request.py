@@ -104,9 +104,9 @@ def build_edit_request_inline_keyboard_v2():
             [InlineKeyboardButton(" اصلاح نقش (خریدار/فروشنده) ⬅ ", callback_data="req_edit:role")],
             [InlineKeyboardButton(" اصلاح ارز ⬅ ", callback_data="req_edit:currency")],
             [InlineKeyboardButton(" اصلاح مقدار ⬅ ", callback_data="req_edit:amount")],
-            [InlineKeyboardButton(" اصلاح قیمت هر واحد ⬅ ", callback_data="req_edit:unit_price_irt")],
+            [InlineKeyboardButton(" اصلاح نرخ پیشنهادی ⬅ ", callback_data="req_edit:unit_price_irt")],
             [InlineKeyboardButton(" اصلاح روش معامله ⬅ ", callback_data="req_edit:deal_method")],
-            [InlineKeyboardButton("🪧 اصلاح توضیحات ⬅ ", callback_data="req_edit:description")],
+            [InlineKeyboardButton("اصلاح توضیحات ⬅ ", callback_data="req_edit:description")],
             [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit:back")],
         ]
     )
