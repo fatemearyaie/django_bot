@@ -104,14 +104,19 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         method_text = dict(TradeRequest.DealMethod.choices).get(method_value,
                                                                 str(method_value)) if method_value else "—"
 
-        amount_text = getattr(req, "amount", None)
-        amount_text = str(amount_text) if amount_text is not None else "—"
+        amount_val = getattr(req, "amount", None)
+        currency_text = req.get_currency_display() if getattr(req, "currency", None) else "—"
+
+        if amount_val is not None:
+            amount_text = f"{amount_val} {currency_text}"
+        else:
+            amount_text = f"— {currency_text}" if currency_text != "—" else "—"
 
         price_val = getattr(offer, "unit_price_irt", None)
         price_text = f"{int(price_val):,}" if isinstance(price_val, (int, float)) else "—"
 
         created_at = getattr(offer, "created_at", None)
-        created_at_text = created_at.strftime("%Y/%m/%d %H:%M") if created_at else "—"
+        created_at_text = jalali_with_month_name(created_at) if created_at else "—"
 
         amount_val = getattr(req, "amount", None)
 
@@ -142,7 +147,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
             text=(
                 "✅ <b>توافق جدید ثبت شد</b>\n\n"
-                f"📌 {ad_text}\n\n"
+                f"📌 {ad_text}\n"
                 f"⬅ مقدار: {amount_text_safe}\n\n"
                 f"⬅ نرخ پیشنهادی: <b>{price_text_safe} تومان</b>\n\n"
                 f"⬅ زمان ثبت پیشنهاد: {created_at_text_safe}\n\n"
@@ -151,7 +156,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "<b>جزئیات تسویه در صورت تأیید معامله:</b>\n"
                 f"در صورت پذیرش نرخ ثبت‌شده، با پرداخت مبلغ "
                 f"<b>{final_amount_text_safe} تومان</b> (با احتساب کارمزد)، "
-                f"مقدار <b>{amount_text_safe}</b> دریافت خواهید کرد.\n\n"
+                f"مقدار <b>{amount_text}</b> دریافت خواهید کرد.\n\n"
                 "⚡این پیام را به ادمین ارسال کنید تا هماهنگی‌های بعدی صورت پذیرد."
             )
         )
