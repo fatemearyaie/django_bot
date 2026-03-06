@@ -23,7 +23,14 @@ def get_offer_for_owner(offer_id: int, owner_tg_id: int):
         .filter(id=offer_id, request__owner__telegram_id=owner_tg_id)
         .first()
     )
-
+@sync_to_async
+def get_other_rejected_offers(request_id: int, accepted_offer_id: int):
+    return list(
+        TradeOffer.objects.filter(
+            request_id=request_id,
+            status=TradeOffer.Status.REJECTED,
+        ).exclude(id=accepted_offer_id)
+    )
 
 @sync_to_async
 def _accept_offer_and_close_request(offer: TradeOffer):
@@ -73,6 +80,19 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         offer_label,
         "ACCEPTED"
     )
+    other_rejected = await get_other_rejected_offers(offer.request.id, offer.id)
+
+    for ro in other_rejected:
+        rejected_label = (
+            f"{ro.unit_price_irt:,} تومان "
+            f"در {jalali_with_month_name(ro.created_at)}"
+        )
+        await sync_to_async(set_offer_status_in_channel)(
+            ro.request.id,
+            ro.id,
+            rejected_label,
+            "REJECTED"
+        )
 
     try:
         req = offer.request

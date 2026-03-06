@@ -18,7 +18,7 @@ STATUS_EMOJI = {
 }
 
 MARKER = "پیشنهادهای ارسال شده:"
-FOOTER_PREFIX = "🆔 آیدی کانال:"
+FOOTER_PREFIX = "ثبت درخواست جدید"
 
 # -----------------------
 # Keyboards
@@ -107,17 +107,13 @@ def _extract_offer_id(line: str) -> int | None:
 
 def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
     def _pop_footer_from_lines(lines: list[str]) -> tuple[list[str], str]:
-        # trim trailing blanks
         while lines and not lines[-1].strip():
             lines.pop()
 
         footer_line = ""
 
-        # اگر چند بار پشت سر هم فوتر تکرار شده بود، همه‌ش رو بردار
         while lines and lines[-1].strip().startswith(FOOTER_PREFIX):
-            footer_line = lines.pop().strip()  # آخرین نمونه را نگه می‌داریم
-
-            # دوباره trim (اگر بین فوترها خط خالی افتاده)
+            footer_line = lines.pop().strip()
             while lines and not lines[-1].strip():
                 lines.pop()
 
@@ -127,25 +123,23 @@ def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
     if not base_text:
         return "", [], ""
 
-    # --- حالت 1: مارکر هنوز وجود ندارد (پست اولیه) ---
     if MARKER not in base_text:
         lines = [ln.rstrip() for ln in base_text.splitlines()]
         lines, footer = _pop_footer_from_lines(lines)
-        head = "\n".join([ln for ln in lines]).rstrip()
+        head = "\n".join(lines).rstrip()
         return head, [], footer
 
-    # --- حالت 2: مارکر وجود دارد ---
     head, tail = base_text.split(MARKER, 1)
 
     head_lines = [ln.rstrip() for ln in head.rstrip().splitlines()]
     head_lines, footer1 = _pop_footer_from_lines(head_lines)
     head_clean = "\n".join(head_lines).rstrip()
 
-    lines = [ln.rstrip() for ln in tail.strip().splitlines() if ln.strip()]
+    lines = [ln.rstrip() for ln in tail.splitlines() if ln.strip()]
     lines, footer2 = _pop_footer_from_lines(lines)
 
     footer = footer2 or footer1
-    return head_clean.rstrip(), lines, footer
+    return head_clean, lines, footer
 # -----------------------
 # Core: Upsert
 # -----------------------
@@ -208,10 +202,15 @@ def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, st
         deduped.append(ln)
     lines = list(reversed(deduped))
 
+    parts = [head, "", MARKER]
+
     if lines:
-        new_text = head + "\n\n" + MARKER + "\n" + "\n".join(lines) + "\n\n" + footer + "\n"
-    else:
-        new_text = head + "\n\n" + MARKER + "\n\n" + footer + "\n"
+        parts.extend(lines)
+
+    if footer:
+        parts.extend(["", footer])
+
+    new_text = "\n".join(parts).strip() + "\n"
 
     bot = Bot(token=token)
 
