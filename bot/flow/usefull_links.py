@@ -30,7 +30,7 @@ def _fmt_avg(v):
     try:
         if v is None:
             return "—"
-        return f"{int(v):,} تومان/واحد"
+        return f"{int(v):,} تومان"
     except Exception:
         return "—"
 
@@ -77,17 +77,16 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
     for cur in ["USD", "EUR", "AED"]:
         label = escape(cur_fa.get(cur, cur))
         avg = escape(_fmt_avg(avgs.get(cur)))
-        lines.append(f"• {label} ({escape(cur)}): {avg}")
+        lines.append(f"⚡️ {label} ({escape(cur)}): {avg}")
 
     text = (
-        "<b>🔗 </b>لینک‌های مفید و نرخ ارز\n\n"
+        "<b>🔗 </b>دسترسی سریع به لینک‌های مفید \n\n"
+        '🚩  <a href="https://www.bonbast.com/">bonbast.com</a>\n\n'
+        '🚩  <a href="https://www.tgju.org/">tgju.org</a>\n\n'
         "<b>📊 میانگین معاملات کل سیستم</b>\n\n"
-        + "\n".join(lines)
+        + "\n\n".join(lines)
         + "\n\n\n\n"
-        "<b>🌍 نرخ ارز آنلاین</b>\n\n"
-        '• <a href="https://fa.navasan.net/">fa.navasan.net</a>\n\n'
-        '• <a href="https://www.bonbast.com/">bonbast.com</a>\n\n'
-        '• <a href="https://www.tgju.org/">tgju.org</a>\n\n'
+
     )
 
     await msg.reply_text(
