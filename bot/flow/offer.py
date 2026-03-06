@@ -416,7 +416,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if text == BTN_CANCEL:
         return await offer_cancel(update, context)
 
-    # دیگه "نه منصرف شدم" نداریم. فقط ارسال/انصراف.
     if text != BTN_SEND:
         await msg.reply_text(
             "لطفاً فقط یکی از گزینه‌ها رو انتخاب کن.",
@@ -454,17 +453,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             reply_markup=_main_menu_kb(),
         )
         return ConversationHandler.END
-
-    best_prev = await _get_sender_last_offer_price(sender.id, req.id)
-    if best_prev is not None and int(d.proposed_rate) <= int(best_prev):
-        await msg.reply_text(
-            f"❌ شما قبلاً برای این درخواست پیشنهاد {best_prev:,} تومان/واحد ثبت کرده‌اید.\n"
-            "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.\n\n"
-            "اگر می‌خواهی نرخ را تغییر بدهی، دوباره روی درخواست کلیک کن و عدد بالاتر وارد کن.",
-            parse_mode="Markdown",
-            reply_markup=_rk_with_cancel([[BTN_SEND]]),
-        )
-        return CONFIRM
 
     try:
         offer = await _create_offer(
@@ -524,7 +512,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         reply_markup=ReplyKeyboardRemove(),
     )
     return ConversationHandler.END
-
 
 async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop("offer_draft", None)
