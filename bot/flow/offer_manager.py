@@ -4,7 +4,7 @@ from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
 from decouple import config
 from django.db import transaction
-
+from html import escape
 from Trade.models.models import TradeOffer, TradeRequest
 from Trade.services.offers_service import (
     set_offer_status_in_channel,
@@ -75,12 +75,13 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"در {jalali_with_month_name(offer.created_at)}"
     )
     await sync_to_async(set_offer_status_in_channel)(
-        offer.request.id,
+        offer.request_id,
         offer.id,
         offer_label,
         "ACCEPTED"
     )
-    other_rejected = await get_other_rejected_offers(offer.request.id, offer.id)
+
+    other_rejected = await get_other_rejected_offers(offer.request_id, offer.id)
 
     for ro in other_rejected:
         rejected_label = (
@@ -88,7 +89,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"در {jalali_with_month_name(ro.created_at)}"
         )
         await sync_to_async(set_offer_status_in_channel)(
-            ro.request.id,
+            ro.request_id,
             ro.id,
             rejected_label,
             "REJECTED"
@@ -97,12 +98,11 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         req = offer.request
         link = channel_post_link(req)
-        ad_text = f"[مشاهده جزئیات حواله]({link})" if link else f"#{req.id}"
+        ad_text = f'<a href="{link}">مشاهده جزئیات حواله</a>' if link else f"#{req.id}"
 
         method_value = getattr(req, "deal_method", None)
-        method_text = dict(TradeRequest.DealMethod.choices).get(method_value,str(method_value)) if method_value else "—"
-
-
+        method_text = dict(TradeRequest.DealMethod.choices).get(method_value,
+                                                                str(method_value)) if method_value else "—"
 
         amount_text = getattr(req, "amount", None)
         amount_text = str(amount_text) if amount_text is not None else "—"
@@ -113,48 +113,50 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         created_at = getattr(offer, "created_at", None)
         created_at_text = created_at.strftime("%Y/%m/%d %H:%M") if created_at else "—"
 
-        # ✅ اضافه شد: مقدار عددی amount برای محاسبه
         amount_val = getattr(req, "amount", None)
 
-        # ✅ اضافه شد: FEE اگر تعریف نشده/None بود کرش نکنه
         try:
             fee_val = int(FEE)
         except Exception:
             fee_val = 0
 
-        # ✅ اضافه شد: محاسبه امن مبلغ نهایی
         final_amount = None
         try:
             if price_val is not None and amount_val is not None:
-                # اگر amount Decimal باشه هم کار می‌کنه
                 final_amount = int(price_val * float(amount_val)) + fee_val
         except Exception:
             final_amount = None
 
-        # ✅ اضافه شد: متن نمایشی مبلغ نهایی
         final_amount_text = f"{final_amount:,}" if isinstance(final_amount, int) else "—"
-        # ✅ اضافه شد: کارمزد با جداکننده
-        fee_text = f"{fee_val:,}"
+
+        offer_message_text = escape(offer.message) if offer.message else "—"
+        method_text_safe = escape(method_text)
+        amount_text_safe = escape(amount_text)
+        price_text_safe = escape(price_text)
+        created_at_text_safe = escape(created_at_text)
+        final_amount_text_safe = escape(final_amount_text)
 
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
-            parse_mode="Markdown",
+            parse_mode="HTML",
+            disable_web_page_preview=True,
             text=(
-                "✅ *توافق جدید ثبت شد*\n\n"
-                f" مشاهده جزئیات حواله {ad_text}\n"
-                f"📦 مقدار: {amount_text}\n"
-                f"💰 مبلغ/نرخ پیشنهاد: {price_text} تومان\n"
-                f"🕒 زمان ثبت پیشنهاد: {created_at_text}\n"
-                f"🔁 روش معامله: `{method_text}`\n"
-                f"📝 توضیحات: {offer.message if offer.message else '—'}\n\n"
-                f"شما در ازای پرداخت مبلغ {final_amount_text} ارز تومان با لحاظ مقدار کارمزد تعداد {amount_text} معامله خواهید کرد\n\n"
-                
-                "این پیام را برای ادمین بفرستید تا ارتباط بین شما و درخواست دهنده را برقرار کنند\n"                
-                f" 💸 کارمزد: {fee_text} تومان\n"
+                "✅ <b>توافق جدید ثبت شد</b>\n\n"
+                f"📌 {ad_text}\n\n"
+                f"⬅ مقدار: {amount_text_safe}\n\n"
+                f"⬅ نرخ پیشنهادی: <b>{price_text_safe} تومان</b>\n\n"
+                f"⬅ زمان ثبت پیشنهاد: {created_at_text_safe}\n\n"
+                f"⬅ روش انجام معامله: {method_text_safe}\n\n"
+                f"⬅ توضیحات: {offer_message_text}\n\n"
+                "<b>جزئیات تسویه در صورت تأیید معامله:</b>\n"
+                f"در صورت پذیرش نرخ ثبت‌شده، با پرداخت مبلغ "
+                f"<b>{final_amount_text_safe} تومان</b> (با احتساب کارمزد)، "
+                f"مقدار <b>{amount_text_safe}</b> دریافت خواهید کرد.\n\n"
+                "⚡این پیام را به ادمین ارسال کنید تا هماهنگی‌های بعدی صورت پذیرد."
             )
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print("SEND ACCEPT MESSAGE ERROR:", type(e), repr(e))
 
     # ✅ آپدیت پیام مالک
     base_text = q.message.text or q.message.caption or ""

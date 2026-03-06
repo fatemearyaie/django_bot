@@ -21,15 +21,14 @@ def build_channel_post_text(req: TradeRequest) -> str:
     currency_fa = req.get_currency_display() if getattr(req, "currency", None) else "—"
 
     amount_text = f"{req.amount:,}" if req.amount is not None else "—"
-    unit_price_text = f"{req.unit_price_irt:,}" if req.unit_price_irt is not None else "—"
-
+    unit_price_text = f"{req.unit_price_irt:,} تومان" if req.unit_price_irt is not None else "توافقی"
     desc = escape((req.description or "").strip())
     desc_line = f"📝 توضیحات: {desc}" if desc else ""
 
     base_text = (
         f"📌 درخواست {req.id} | بابت {role_tag} #{currency_fa}\n\n"
         f"<b>{role_dot}  {role_label} : {amount_text} {currency_fa}</b>\n\n"
-        f"<b>💬 نرخ پیشنهادی: {unit_price_text} تومان</b>\n\n"
+        f"<b>💬 نرخ پیشنهادی: {unit_price_text} </b>\n\n"
         f"🪧 نوع حواله: {deal_method_fa}\n"
     )
 

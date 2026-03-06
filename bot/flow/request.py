@@ -30,6 +30,20 @@ from Trade.services.request_services import publish_trade_request_to_channel
 
 TR_ROLE, TR_CURRENCY, TR_AMOUNT, TR_UNIT_PRICE, TR_METHOD, TR_DESC, TR_CONFIRM, TR_EDIT_MENU, TR_EDIT_VALUE = range(9)
 
+BTN_CANCEL = "❌ انصراف"
+BTN_NEGOTIABLE = "🤝 توافقی"
+
+
+def with_cancel(rows: list[list[str]]) -> ReplyKeyboardMarkup:
+    final_rows = [[KeyboardButton(x) for x in row] for row in rows]
+    final_rows.append([KeyboardButton(BTN_CANCEL)])
+    return ReplyKeyboardMarkup(
+        final_rows,
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
 def build_channel_link(req: TradeRequest) -> str | None:
     try:
         if not req.channel_chat_id or not req.channel_message_id:
@@ -50,52 +64,39 @@ def build_channel_link(req: TradeRequest) -> str | None:
 def deal_method_fa(value: str) -> str:
     return dict(TradeRequest.DealMethod.choices).get(value, value)
 
-side_key = ReplyKeyboardMarkup(
-    [[KeyboardButton("خریدارم"), KeyboardButton("فروشنده ام")]],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
 
-currency_key = ReplyKeyboardMarkup(
-    [
-        [KeyboardButton("EUR"), KeyboardButton("USD")],
-        [KeyboardButton("AED")]
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
+side_key = with_cancel([
+    ["خریدارم", "فروشنده ام"],
+])
 
-method_key = ReplyKeyboardMarkup(
-    [
-        [KeyboardButton("انتقال آنی"), KeyboardButton("حواله بانکی")],
-        [KeyboardButton("سایر"), KeyboardButton("مسترکارت")]
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
+currency_key = with_cancel([
+    ["EUR", "USD"],
+    ["AED"],
+])
 
-amount_key = ReplyKeyboardMarkup(
-    [
-        [KeyboardButton("100"), KeyboardButton("200"), KeyboardButton("300")],
-        [KeyboardButton("400"), KeyboardButton("500"), KeyboardButton("600")],
-        [KeyboardButton("700"), KeyboardButton("800"), KeyboardButton("900")],
-        [KeyboardButton("1000")]
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
+method_key = with_cancel([
+    ["انتقال آنی", "حواله بانکی"],
+    ["سایر", "مسترکارت"],
+])
 
-confirm_key = ReplyKeyboardMarkup(
-    [[KeyboardButton("❌ اصلاح"), KeyboardButton("✅ تایید و ارسال")]],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
+amount_key = with_cancel([
+    ["100", "200", "300"],
+    ["400", "500", "600"],
+    ["700", "800", "900"],
+    ["1000"],
+])
 
-no_desc_key = ReplyKeyboardMarkup(
-    [[KeyboardButton("📝 بدون توضیحات")]],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
+unit_price_key = with_cancel([
+    [BTN_NEGOTIABLE],
+])
+
+confirm_key = with_cancel([
+    ["❌ اصلاح", "✅ تایید و ارسال"],
+])
+
+no_desc_key = with_cancel([
+    ["📝 بدون توضیحات"],
+])
 
 
 def build_edit_request_inline_keyboard_v2():
@@ -110,9 +111,6 @@ def build_edit_request_inline_keyboard_v2():
             [InlineKeyboardButton("↩️ برگشت به پیش‌نمایش", callback_data="req_edit:back")],
         ]
     )
-
-
-
 
 
 MYREQ_PAGE_SIZE = 1
@@ -144,6 +142,15 @@ def _offer_status_fa(status: str) -> str:
         TradeOffer.Status.REJECTED: "❌ رد شده",
     }
     return mapping.get(status, status)
+
+
+def unit_price_fa(value) -> str:
+    if value is None:
+        return "توافقی"
+    try:
+        return f"{int(value):,} تومان"
+    except Exception:
+        return "توافقی"
 
 
 @sync_to_async
@@ -181,6 +188,7 @@ def build_myreq_list_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton("🏠 منوی اصلی", callback_data="myreq_home")])
     return InlineKeyboardMarkup(rows)
 
+
 async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_requests(user.id, page)
 
@@ -211,7 +219,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         f"🆔 {req_id_text}\n\n"
         f"👤 نقش: {_role_fa(r.role)} | 💱 ارز: {r.currency}\n"
         f"💰 مقدار: {r.amount}\n"
-        f"🏷 قیمت واحد: {r.unit_price_irt:,} تومان\n"
+        f"🏷 قیمت واحد: {unit_price_fa(r.unit_price_irt)}\n"
         f"💳 روش معامله: {r.get_deal_method_display()}\n"
         f"🪧 توضیحات: {r.description or '—'}\n"
         f"📌 وضعیت: {_req_status_fa(r.status)}\n"
@@ -251,6 +259,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
             reply_markup=kb,
             disable_web_page_preview=True,
         )
+
 
 async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
@@ -358,7 +367,7 @@ def create_exchange_request(
     role: str,
     currency: str,
     amount: Decimal,
-    unit_price_irt: int,
+    unit_price_irt,
     deal_method: str,
     description: str,
     fee_irt: int,
@@ -409,10 +418,16 @@ def parse_amount(text: str) -> Decimal | None:
         return None
 
 
-def parse_unit_price(text: str) -> int | None:
-    t = (text or "").strip().replace(",", "").replace("_", "")
+def parse_unit_price(text: str):
+    t = (text or "").strip()
+
+    if t == BTN_NEGOTIABLE:
+        return "NEGOTIABLE"
+
+    t = t.replace(",", "").replace("_", "")
     if not t.isdigit():
         return None
+
     v = int(t)
     if v <= 0:
         return None
@@ -421,6 +436,10 @@ def parse_unit_price(text: str) -> int | None:
 
 def get_fee_irt() -> int:
     return int(config("TRADE_REQUEST_FEE"))
+
+
+def is_cancel_text(text: str | None) -> bool:
+    return (text or "").strip() == BTN_CANCEL
 
 
 async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
@@ -435,10 +454,12 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         currency_fa = str(data["currency"])
 
+    price_text = "توافقی" if data.get("unit_price_irt") is None else f"{data['unit_price_irt']} تومان"
+
     preview = (
         "🧾 *پیش‌نمایش درخواست شما*\n\n"
         f"*{dot}   {role_fa} : {data['amount']} {currency_fa}*\n\n"
-        f"*💬 نرخ پیشنهادی: {data['unit_price_irt']} تومان*\n\n"
+        f"*💬 نرخ پیشنهادی: {price_text}*\n\n"
         f" 🪧 نوع حواله: {deal_method_fa(data['deal_method'])}  \n"
         f" 🪧 توضیحات درخواست: {data['description'] or '—'}\n\n"
         "✅ از ارسال مطمئنی؟"
@@ -448,6 +469,7 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=confirm_key
     )
+
 
 async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -475,7 +497,10 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return TR_EDIT_VALUE
 
     if action == "unit_price_irt":
-        await q.message.reply_text("⬅ نرخ پیشنهادی شما برای هر ارز مد نظرتون چند تومان است؟", reply_markup=ReplyKeyboardRemove())
+        await q.message.reply_text(
+            "⬅ نرخ پیشنهادی شما برای هر ارز مد نظرتون چند تومان است؟\nیا گزینه «توافقی» را بزن.",
+            reply_markup=with_cancel([[BTN_NEGOTIABLE]]),
+        )
         return TR_EDIT_VALUE
 
     if action == "deal_method":
@@ -504,6 +529,9 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     txt = (update.message.text or "").strip()
 
+    if is_cancel_text(txt):
+        return await tr_cancel(update, context)
+
     if field == "role":
         role = map_role(txt)
         if not role:
@@ -522,16 +550,19 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif field == "amount":
         amount = parse_amount(txt)
         if amount is None:
-            await update.message.reply_text("❌ مقدار نامعتبره.")
+            await update.message.reply_text("❌ مقدار نامعتبره.", reply_markup=amount_key)
             return TR_EDIT_VALUE
         data["amount"] = amount
 
     elif field == "unit_price_irt":
         unit_price = parse_unit_price(txt)
         if unit_price is None:
-            await update.message.reply_text("❌ قیمت نامعتبره. فقط عدد صحیح. مثال: 75000")
+            await update.message.reply_text(
+                "❌ قیمت نامعتبره. فقط عدد صحیح وارد کن یا «🤝 توافقی» را بزن.",
+                reply_markup=with_cancel([[BTN_NEGOTIABLE]]),
+            )
             return TR_EDIT_VALUE
-        data["unit_price_irt"] = unit_price
+        data["unit_price_irt"] = None if unit_price == "NEGOTIABLE" else unit_price
 
     elif field == "deal_method":
         method = map_method(txt)
@@ -604,6 +635,10 @@ async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✏️ ویرایش درخواست #{req_id}\nکدوم بخش رو می‌خوای اصلاح کنی؟",
             reply_markup=build_edit_request_inline_keyboard_v2(),
         )
+        await q.message.reply_text(
+            "برای لغو کامل فرایند، هر مرحله روی «❌ انصراف» بزن.",
+            reply_markup=with_cancel([]),
+        )
         return TR_EDIT_MENU
 
     await q.message.reply_text("❌ عملیات نامعتبر.")
@@ -629,7 +664,12 @@ async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    role = map_role(update.message.text)
+    txt = (update.message.text or "").strip()
+
+    if is_cancel_text(txt):
+        return await tr_cancel(update, context)
+
+    role = map_role(txt)
     if not role:
         await update.message.reply_text("❌ لطفاً یکی از گزینه‌ها رو انتخاب کن.", reply_markup=side_key)
         return TR_ROLE
@@ -640,7 +680,12 @@ async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cur = (update.message.text or "").strip().upper()
+    txt = (update.message.text or "").strip()
+
+    if is_cancel_text(txt):
+        return await tr_cancel(update, context)
+
+    cur = txt.upper()
     allowed = {c[0] for c in TradeRequest.Currency.choices}
     if cur not in allowed:
         await update.message.reply_text("❌ ارز نامعتبره. یکی از گزینه‌ها رو انتخاب کن.", reply_markup=currency_key)
@@ -652,33 +697,51 @@ async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    amount = parse_amount(update.message.text)
+    txt = (update.message.text or "").strip()
+
+    if is_cancel_text(txt):
+        return await tr_cancel(update, context)
+
+    amount = parse_amount(txt)
     if amount is None:
-        await update.message.reply_text("❌ مقدار نامعتبره.")
+        await update.message.reply_text("❌ مقدار نامعتبره.", reply_markup=amount_key)
         return TR_AMOUNT
 
     context.user_data["tr"]["amount"] = amount
 
     await update.message.reply_text(
-        "⬅ نرخ پیشنهادی شما برای هر ارز مد نظرتون چند تومان است؟",
-        reply_markup=ReplyKeyboardRemove(),
+        "⬅ نرخ پیشنهادی شما برای هر ارز مد نظرتون چند تومان است؟\nیا گزینه «توافقی» را بزن.",
+        reply_markup=with_cancel([[BTN_NEGOTIABLE]]),
     )
     return TR_UNIT_PRICE
 
 
 async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    unit_price = parse_unit_price(update.message.text)
+    txt = (update.message.text or "").strip()
+
+    if is_cancel_text(txt):
+        return await tr_cancel(update, context)
+
+    unit_price = parse_unit_price(txt)
     if unit_price is None:
-        await update.message.reply_text("❌ قیمت نامعتبره. فقط عدد صحیح وارد کن. مثال: 75000")
+        await update.message.reply_text(
+            "❌ قیمت نامعتبره. فقط عدد صحیح وارد کن یا «🤝 توافقی» را بزن.",
+            reply_markup=with_cancel([[BTN_NEGOTIABLE]]),
+        )
         return TR_UNIT_PRICE
 
-    context.user_data["tr"]["unit_price_irt"] = unit_price
+    context.user_data["tr"]["unit_price_irt"] = None if unit_price == "NEGOTIABLE" else unit_price
     await update.message.reply_text("⬅ روش انجام معامله موردنظر شما کدام است؟", reply_markup=method_key)
     return TR_METHOD
 
 
 async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    method = map_method(update.message.text)
+    txt = (update.message.text or "").strip()
+
+    if is_cancel_text(txt):
+        return await tr_cancel(update, context)
+
+    method = map_method(txt)
     if not method:
         await update.message.reply_text("❌ لطفاً یکی از گزینه‌ها رو انتخاب کن.", reply_markup=method_key)
         return TR_METHOD
@@ -692,7 +755,12 @@ async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    desc = (update.message.text or "").strip()
+    txt = (update.message.text or "").strip()
+
+    if is_cancel_text(txt):
+        return await tr_cancel(update, context)
+
+    desc = txt
     if desc == "📝 بدون توضیحات" or desc == "-":
         desc = ""
 
@@ -704,10 +772,17 @@ async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
 
+    if is_cancel_text(text):
+        return await tr_cancel(update, context)
+
     if text == "❌ اصلاح":
         await update.message.reply_text(
             "کدوم بخش رو می‌خوای اصلاح کنی؟",
             reply_markup=build_edit_request_inline_keyboard_v2()
+        )
+        await update.message.reply_text(
+            "برای لغو کامل فرایند، روی «❌ انصراف» بزن.",
+            reply_markup=with_cancel([]),
         )
         return TR_EDIT_MENU
 
@@ -784,13 +859,21 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     context.user_data.pop("tr", None)
+    context.user_data.pop("editing_req_id", None)
     return ConversationHandler.END
 
 
 async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("tr", None)
     context.user_data.pop("editing_req_id", None)
-    await update.message.reply_text("❌ ثبت درخواست لغو شد.", reply_markup=ReplyKeyboardRemove())
+    context.user_data.pop("tr_edit_field", None)
+
+    msg = update.effective_message
+    if msg:
+        await msg.reply_text(
+            "❌ ثبت درخواست لغو شد.\n🏠 برگشتی به منوی اصلی.",
+            reply_markup=build_main_menu_keyboard(),
+        )
     return ConversationHandler.END
 
 
