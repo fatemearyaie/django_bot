@@ -4,7 +4,7 @@ from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 
 from Trade.models.models import TradeRequest
 from bot.flow.registration import build_main_menu_keyboard
-
+from html import escape
 CHANNEL = "@excoinmarket"          # یا بهتر: channel id عددی
 BOT_USERNAME = "excoinmarket_bot"
 FOOTER_PREFIX = "ثبت درخواست جدید ⬅️"
@@ -23,22 +23,26 @@ def build_channel_post_text(req: TradeRequest) -> str:
     amount_text = f"{req.amount:,}" if req.amount is not None else "—"
     unit_price_text = f"{req.unit_price_irt:,}" if req.unit_price_irt is not None else "—"
 
-    desc = (req.description or "").strip()
+    desc = escape((req.description or "").strip())
     desc_line = f"📝 توضیحات: {desc}" if desc else ""
 
-    ONE_BLANK = "\n\u200b\n"
-    TWO_BLANKS = "\n\u200b\n\u200b\n"
-
-    tail = f"\n{desc_line}{TWO_BLANKS}" if desc else TWO_BLANKS
-
-    return (
+    base_text = (
         f"📌 درخواست {req.id} | بابت {role_tag} #{currency_fa}\n\n"
-        f"*{role_dot}  {role_label} : {amount_text} {currency_fa}*\n\n"
-        f"*💬 نرخ پیشنهادی: {unit_price_text} تومان*\n\n"
-        f" 🪧 نوع حواله: {deal_method_fa}"
-        f"{tail}"
+        f"<b>{role_dot}  {role_label} : {amount_text} {currency_fa}</b>\n\n"
+        f"<b>💬 نرخ پیشنهادی: {unit_price_text} تومان</b>\n\n"
+        f"🪧 نوع حواله: {deal_method_fa}\n"
     )
 
+    if desc_line:
+        base_text += f"{desc_line}\n"
+
+    base_text += (
+        "\n"
+        "پیشنهادهای ارسال شده:\n\n"
+        "ثبت درخواست جدید ⬅️ @Excoinmarket_bot"
+    )
+
+    return base_text
 def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(" ثبت پیشنهاد 💬", url=f"https://t.me/{BOT_USERNAME}?start=offer_{req_id}")]
@@ -65,7 +69,7 @@ def publish_trade_request_to_channel(req_id: int) -> bool:
         msg = async_to_sync(bot.send_message)(
             chat_id=CHANNEL,
             text=text,
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=build_channel_keyboard(req.id),
             disable_web_page_preview=True,
         )
