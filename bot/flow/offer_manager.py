@@ -215,8 +215,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"⬅ روش انجام معامله: {method_text_safe}\n\n"
                 f"⬅ توضیحات: {offer_message_text}\n\n"
                 "<b>جزئیات تسویه در صورت تأیید معامله:</b>\n"
-                f"کارمزد این معامله: <b>{fee_in_currency_text_safe} {currency_text_safe}</b>\n"
-                f"معادل کارمزد به تومان: <b>{fee_toman_text_safe} تومان</b>\n\n"
+                
                 f"در صورت پذیرش نرخ ثبت‌شده، با پرداخت مبلغ "
                 f"<b>{final_amount_text_safe} تومان</b> (با احتساب کارمزد)، "
                 f"مقدار <b>{amount_text_safe}</b> دریافت خواهید کرد.\n\n"
