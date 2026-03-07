@@ -109,7 +109,7 @@ def _accept_offer_and_close_request(offer: TradeOffer):
 def _apply_scores_for_accepted_offer(offer_id: int):
     offer = (
         TradeOffer.objects
-        .select_related("sender", "request")
+        .select_related("sender", "request", "sender__invited_by")
         .get(id=offer_id)
     )
 
@@ -139,15 +139,25 @@ def _apply_scores_for_accepted_offer(offer_id: int):
 
     score_to_add = 0
 
+    # 1) بونوس اولین معامله خود کاربر
     if accepted_count == 1:
         score_to_add += 5
 
+    # 3) امتیاز کارمزد
     score_to_add += calculate_score_from_fee_toman(fee_toman)
 
     if score_to_add > 0:
         user.total_points = (user.total_points or 0) + score_to_add
         user.save(update_fields=["total_points"])
 
+    # 2-ب) اولین معامله زیرمجموعه => 10 امتیاز برای معرف
+    if accepted_count == 1 and user.invited_by and not user.referral_first_trade_rewarded:
+        inviter = user.invited_by
+        inviter.total_points = (inviter.total_points or 0) + 10
+        inviter.save(update_fields=["total_points"])
+
+        user.referral_first_trade_rewarded = True
+        user.save(update_fields=["referral_first_trade_rewarded"])
 
 async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query

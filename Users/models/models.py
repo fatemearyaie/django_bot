@@ -33,6 +33,8 @@ class CustomUser(AbstractBaseUser,PermissionsMixin):
     country = models.ForeignKey(Country, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='کشور')
     total_points = models.PositiveIntegerField(default=0)
     used_points = models.PositiveIntegerField(default=0)
+
+
     referral_code = models.CharField(max_length=20, unique=True, null=True, blank=True)
     invited_by = models.ForeignKey(
         "self",
@@ -41,6 +43,9 @@ class CustomUser(AbstractBaseUser,PermissionsMixin):
         on_delete=models.SET_NULL,
         related_name="invited_users"
     )
+
+    referral_signup_rewarded = models.BooleanField(default=False)
+    referral_first_trade_rewarded = models.BooleanField(default=False)
 
     @property
     def available_points(self):
