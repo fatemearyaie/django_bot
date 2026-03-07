@@ -140,18 +140,18 @@ def _apply_scores_for_accepted_offer(offer_id: int):
 
     score_to_add = 0
 
-    # 1) بونوس اولین معامله خود کاربر
+    # first trade
     if accepted_count == 1:
         score_to_add += 5
 
-    # 3) امتیاز کارمزد
+    # fee score
     score_to_add += calculate_score_from_fee_toman(fee_toman)
 
     if score_to_add > 0:
         user.total_points = (user.total_points or 0) + score_to_add
         user.save(update_fields=["total_points"])
 
-    # 2-ب) اولین معامله زیرمجموعه => 10 امتیاز برای معرف
+    # first trade of sub
     if accepted_count == 1 and user.invited_by and not user.referral_first_trade_rewarded:
         inviter = user.invited_by
         inviter.total_points = (inviter.total_points or 0) + 10
@@ -236,20 +236,17 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         created_at = getattr(offer, "created_at", None)
         created_at_text = jalali_with_month_name(created_at) if created_at else "—"
 
-        # کارمزد بر حسب خود ارز
+        # fee based on currency
         fee_in_currency = get_trade_fee(currency_value, amount_decimal) if amount_decimal is not None else Decimal("0")
 
-        # تبدیل کارمزد به تومان با نرخ هر واحد
         fee_toman = None
         if price_decimal is not None:
             fee_toman = (fee_in_currency * price_decimal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        # مبلغ پایه معامله به تومان
         base_amount_toman = None
         if price_decimal is not None and amount_decimal is not None:
             base_amount_toman = (amount_decimal * price_decimal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        # مبلغ نهایی = مبلغ پایه + کارمزد تبدیل‌شده به تومان
         final_amount_toman = None
         if base_amount_toman is not None and fee_toman is not None:
             final_amount_toman = (base_amount_toman + fee_toman).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

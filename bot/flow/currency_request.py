@@ -165,7 +165,7 @@ async def currency_requests_page_cb(update: Update, context: ContextTypes.DEFAUL
         await q.message.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
         return
 
-    # curreq:USD:2
+
     try:
         _, cur, page_str = q.data.split(":")
         page = int(page_str)

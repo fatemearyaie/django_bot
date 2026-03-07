@@ -5,7 +5,7 @@ from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from Trade.models.models import TradeRequest
 from bot.flow.registration import build_main_menu_keyboard
 from html import escape
-CHANNEL = "@excoinmarket"          # یا بهتر: channel id عددی
+CHANNEL = "@excoinmarket"
 BOT_USERNAME = "excoinmarket_bot"
 FOOTER_PREFIX = "ثبت درخواست جدید ⬅️"
 

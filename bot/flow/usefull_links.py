@@ -55,7 +55,6 @@ def get_global_avg_deals_by_currency():
 
     out = {row["request__currency"]: row["avg_price"] for row in data}
 
-    # برای اینکه همیشه هر سه ارز وجود داشته باشند
     for cur in ["USD", "EUR", "AED"]:
         out.setdefault(cur, None)
 
@@ -67,9 +66,7 @@ async def useful_links_and_rates_entry(update: Update, context: ContextTypes.DEF
     if not msg:
         return
 
-    # ✅ این الان واقعا محاسبه می‌کنه
     avgs = await get_global_avg_deals_by_currency()
-    # (اگر خواستی همون یکی تابع رو استفاده کنی: avgs = await get_system_avg_rates_by_currency())
 
     cur_fa = {"USD": "دلار", "EUR": "یورو", "AED": "درهم"}
 

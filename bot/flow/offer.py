@@ -60,18 +60,10 @@ def jalali_with_month_name(dt):
     dt = timezone.localtime(dt)
     jdt = jdatetime.datetime.fromgregorian(datetime=dt)
 
-    month_name = jdt.strftime("%B")  # ✅ اسفند، فروردین، ...
+    month_name = jdt.strftime("%B")
     return f" {jdt.day:02d} {month_name} {jdt.strftime('%H:%M')}"
 
-@sync_to_async
-def _get_sender_last_offer_price(sender_id: int, request_id: int) -> int | None:
-    return (
-        TradeOffer.objects
-        .filter(sender_id=sender_id, request_id=request_id)
-        .order_by("-id")
-        .values_list("unit_price_irt", flat=True)
-        .first()
-    )
+
 
 
 @sync_to_async
@@ -206,7 +198,7 @@ def _channel_post_link(req: TradeRequest) -> str | None:
             u = str(username).lstrip("@")
             return f"https://t.me/{u}/{int(msg_id)}"
 
-        # حالت supergroup/channel private: -1001234567890 -> 1234567890
+        #  supergroup/channel private: -1001234567890 -> 1234567890
         s = str(chat_id)
         if s.startswith("-100"):
             internal = s.replace("-100", "", 1)
@@ -299,8 +291,8 @@ def _offer_preview(d: OfferDraft) -> str:
     return (
         "🧾 پیش‌نمایش پیشنهاد شما:\n\n"
         f"📌 آگهی: {d.request_title or f'#{d.request_id}'}\n"
-        f"💱 نرخ درخواست (تومان/واحد): {request_rate_text}\n"
-        f"✅ نرخ پیشنهادی شما (تومان/واحد): {proposed_rate_text}\n"
+        f"💱 نرخ درخواست : {request_rate_text}\n"
+        f"✅ نرخ پیشنهادی شما: {proposed_rate_text}\n"
         f"📝 توضیحات: {d.note if d.note else '—'}\n"
         f"💸 کارمزد: {fee_toman_text}\n"
         f"💰 مبلغ نهایی: {final_amount_text}\n\n"
@@ -316,7 +308,7 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
 
     if not context.args:
-        # fallback به start عمومی
+        # public fallback to start
         from bot.main import start as start_public
         await start_public(update, context)
         return ConversationHandler.END
@@ -380,7 +372,8 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     role_fa = "فروش" if req.role == TradeRequest.Role.SELLER else "خرید"
     currency_fa = req.get_currency_display() if getattr(req, "currency", None) else (req.currency or "—")
-    short_title = f"{role_fa} {currency_fa}"  # مثلا: "فروشنده USD"
+    short_title = f"{role_fa} {currency_fa}"
+
 
     channel_msg_id = req.channel_message_id
     if channel_msg_id:
@@ -490,7 +483,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if text == BTN_CANCEL:
         return await offer_cancel(update, context)
 
-    # دیگه "نه منصرف شدم" نداریم. فقط ارسال/انصراف.
     if text != BTN_SEND:
         await msg.reply_text(
             "لطفاً فقط یکی از گزینه‌ها رو انتخاب کن.",
@@ -529,16 +521,6 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
         return ConversationHandler.END
 
-    best_prev = await _get_sender_last_offer_price(sender.id, req.id)
-    if best_prev is not None and int(d.proposed_rate) <= int(best_prev):
-        await msg.reply_text(
-            f"❌ شما قبلاً برای این درخواست پیشنهاد {best_prev:,} تومان/واحد ثبت کرده‌اید.\n"
-            "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.\n\n"
-            "اگر می‌خواهی نرخ را تغییر بدهی، دوباره روی درخواست کلیک کن و عدد بالاتر وارد کن.",
-            parse_mode="Markdown",
-            reply_markup=_rk_with_cancel([[BTN_SEND]]),
-        )
-        return CONFIRM
 
     try:
         offer = await _create_offer(
