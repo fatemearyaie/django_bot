@@ -12,6 +12,7 @@ from Trade.services.offers_service import (
     set_offer_status_in_channel,
     build_offer_after_accept_keyboard,
     channel_post_link,
+    finalize_closed_request_in_channel
 )
 from bot.flow.offer import jalali_with_month_name
 
@@ -205,6 +206,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             rejected_label,
             "REJECTED"
         )
+    await sync_to_async(finalize_closed_request_in_channel)(offer.request_id)
 
     try:
         req = offer.request

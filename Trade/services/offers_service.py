@@ -20,6 +20,76 @@ STATUS_EMOJI = {
 MARKER = "پیشنهادهای ارسال شده:"
 FOOTER_PREFIX = "ثبت درخواست جدید"
 
+
+def finalize_closed_request_in_channel(req_id: int) -> bool:
+    token = os.environ.get("API_TOKEN")
+    if not token:
+        print("API_TOKEN not set")
+        return False
+
+    req = TradeRequest.objects.filter(pk=req_id).first()
+    if not req:
+        print("TradeRequest not found:", req_id)
+        return False
+
+    if not req.channel_chat_id or not req.channel_message_id:
+        print("No channel message info to edit")
+        return False
+
+    base_text = (req.channel_post_text or "").strip()
+    if not base_text:
+        print("No channel_post_text to edit from")
+        return False
+
+    footer = "ثبت درخواست جدید ⬅️ @Excoinmarket_bot"
+
+    if FOOTER_PREFIX in base_text:
+        parts = base_text.splitlines()
+        clean_lines = []
+        for ln in parts:
+            s = (ln or "").strip()
+            if s == "...........................................................":
+                continue
+            if s == "❇️ درخواست با موفقیت انجام شد.":
+                continue
+            clean_lines.append(ln)
+        base_text = "\n".join(clean_lines).strip()
+
+    if footer in base_text:
+        body = base_text.split(footer, 1)[0].rstrip()
+        new_text = (
+            f"{body}\n\n"
+            "...........................................................\n\n"
+            "❇️ درخواست با موفقیت انجام شد.\n\n"
+            f"{footer}\n"
+        )
+    else:
+        new_text = (
+            f"{base_text}\n\n"
+            "...........................................................\n\n"
+            "❇️ درخواست با موفقیت انجام شد.\n"
+        )
+
+    bot = Bot(token=token)
+
+    try:
+        async_to_sync(bot.edit_message_text)(
+            chat_id=req.channel_chat_id,
+            message_id=req.channel_message_id,
+            text=new_text,
+            parse_mode="HTML",
+            reply_markup=None,
+            disable_web_page_preview=True,
+        )
+        TradeRequest.objects.filter(pk=req.pk).update(channel_post_text=new_text)
+        return True
+
+    except TelegramError as e:
+        print("FINALIZE CHANNEL ERROR:", repr(e))
+        return False
+    except Exception as e:
+        print("FINALIZE CHANNEL ERROR:", type(e), repr(e))
+        return False
 # -----------------------
 # Keyboards
 # -----------------------
