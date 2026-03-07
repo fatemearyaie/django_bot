@@ -1,10 +1,12 @@
+from decimal import Decimal, ROUND_HALF_UP
+from html import escape
+
 from telegram import Update
 from telegram.ext import ContextTypes
 from asgiref.sync import sync_to_async
 from telegram.error import BadRequest
-from decouple import config
 from django.db import transaction
-from html import escape
+
 from Trade.models.models import TradeOffer, TradeRequest
 from Trade.services.offers_service import (
     set_offer_status_in_channel,
@@ -13,7 +15,50 @@ from Trade.services.offers_service import (
 )
 from bot.flow.offer import jalali_with_month_name
 
-FEE = config("TRADE_REQUEST_FEE")
+
+def get_trade_fee(currency: str, amount) -> Decimal:
+    currency = (currency or "").upper()
+    amount = Decimal(str(amount or 0))
+
+    if amount <= 0:
+        return Decimal("0")
+
+    if currency == "EUR":
+        if amount <= 250:
+            return Decimal("1")
+        elif amount <= 500:
+            return Decimal("1.5")
+        else:
+            return (amount * Decimal("0.003")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    if currency == "USD":
+        if amount <= 250:
+            return Decimal("1.2")
+        elif amount <= 500:
+            return Decimal("1.8")
+        else:
+            return (amount * Decimal("0.0035")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    if currency == "AED":
+        if amount <= 250:
+            return Decimal("4.33")
+        elif amount <= 500:
+            return Decimal("6.5")
+        else:
+            return (amount * Decimal("0.013")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    return Decimal("0")
+
+
+def format_money(val) -> str:
+    if val is None:
+        return "—"
+
+    d = Decimal(str(val))
+    if d == d.to_integral():
+        return f"{int(d):,}"
+    return f"{d:,.2f}"
+
 
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
@@ -23,6 +68,8 @@ def get_offer_for_owner(offer_id: int, owner_tg_id: int):
         .filter(id=offer_id, request__owner__telegram_id=owner_tg_id)
         .first()
     )
+
+
 @sync_to_async
 def get_other_rejected_offers(request_id: int, accepted_offer_id: int):
     return list(
@@ -31,6 +78,7 @@ def get_other_rejected_offers(request_id: int, accepted_offer_id: int):
             status=TradeOffer.Status.REJECTED,
         ).exclude(id=accepted_offer_id)
     )
+
 
 @sync_to_async
 def _accept_offer_and_close_request(offer: TradeOffer):
@@ -67,11 +115,10 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.answer("قبلاً تایید شده ✅", show_alert=False)
         return
 
-    # ✅ accept + close
     await _accept_offer_and_close_request(offer)
 
     offer_label = (
-        f"{offer.unit_price_irt:,} تومان "
+        f"{format_money(offer.unit_price_irt)} تومان "
         f"در {jalali_with_month_name(offer.created_at)}"
     )
     await sync_to_async(set_offer_status_in_channel)(
@@ -85,7 +132,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for ro in other_rejected:
         rejected_label = (
-            f"{ro.unit_price_irt:,} تومان "
+            f"{format_money(ro.unit_price_irt)} تومان "
             f"در {jalali_with_month_name(ro.created_at)}"
         )
         await sync_to_async(set_offer_status_in_channel)(
@@ -101,38 +148,49 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ad_text = f'<a href="{link}">مشاهده جزئیات حواله</a>' if link else f"#{req.id}"
 
         method_value = getattr(req, "deal_method", None)
-        method_text = dict(TradeRequest.DealMethod.choices).get(method_value,
-                                                                str(method_value)) if method_value else "—"
+        method_text = dict(TradeRequest.DealMethod.choices).get(
+            method_value, str(method_value)
+        ) if method_value else "—"
 
         amount_val = getattr(req, "amount", None)
-        currency_text = req.get_currency_display() if getattr(req, "currency", None) else "—"
+        currency_value = getattr(req, "currency", None)
+        currency_text = req.get_currency_display() if currency_value else "—"
 
         if amount_val is not None:
-            amount_text = f"{amount_val} {currency_text}"
+            amount_decimal = Decimal(str(amount_val))
+            amount_text = f"{format_money(amount_decimal)} {currency_text}"
         else:
+            amount_decimal = None
             amount_text = f"— {currency_text}" if currency_text != "—" else "—"
 
         price_val = getattr(offer, "unit_price_irt", None)
-        price_text = f"{int(price_val):,}" if isinstance(price_val, (int, float)) else "—"
+        price_decimal = Decimal(str(price_val)) if price_val is not None else None
+        price_text = format_money(price_decimal)
 
         created_at = getattr(offer, "created_at", None)
         created_at_text = jalali_with_month_name(created_at) if created_at else "—"
 
-        amount_val = getattr(req, "amount", None)
+        # کارمزد بر حسب خود ارز
+        fee_in_currency = get_trade_fee(currency_value, amount_decimal) if amount_decimal is not None else Decimal("0")
 
-        try:
-            fee_val = int(FEE)
-        except Exception:
-            fee_val = 0
+        # تبدیل کارمزد به تومان با نرخ هر واحد
+        fee_toman = None
+        if price_decimal is not None:
+            fee_toman = (fee_in_currency * price_decimal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        final_amount = None
-        try:
-            if price_val is not None and amount_val is not None:
-                final_amount = int(price_val * float(amount_val)) + fee_val
-        except Exception:
-            final_amount = None
+        # مبلغ پایه معامله به تومان
+        base_amount_toman = None
+        if price_decimal is not None and amount_decimal is not None:
+            base_amount_toman = (amount_decimal * price_decimal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        final_amount_text = f"{final_amount:,}" if isinstance(final_amount, int) else "—"
+        # مبلغ نهایی = مبلغ پایه + کارمزد تبدیل‌شده به تومان
+        final_amount_toman = None
+        if base_amount_toman is not None and fee_toman is not None:
+            final_amount_toman = (base_amount_toman + fee_toman).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        fee_in_currency_text = format_money(fee_in_currency)
+        fee_toman_text = format_money(fee_toman)
+        final_amount_text = format_money(final_amount_toman)
 
         offer_message_text = escape(offer.message) if offer.message else "—"
         method_text_safe = escape(method_text)
@@ -140,6 +198,9 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         price_text_safe = escape(price_text)
         created_at_text_safe = escape(created_at_text)
         final_amount_text_safe = escape(final_amount_text)
+        fee_in_currency_text_safe = escape(fee_in_currency_text)
+        fee_toman_text_safe = escape(fee_toman_text)
+        currency_text_safe = escape(currency_text)
 
         await context.bot.send_message(
             chat_id=offer.sender.telegram_id,
@@ -147,23 +208,24 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
             text=(
                 "✅ <b>توافق جدید ثبت شد</b>\n\n"
-                f"📌 {ad_text}\n"
+                f"📌 {ad_text}\n\n"
                 f"⬅ مقدار: {amount_text_safe}\n\n"
                 f"⬅ نرخ پیشنهادی: <b>{price_text_safe} تومان</b>\n\n"
                 f"⬅ زمان ثبت پیشنهاد: {created_at_text_safe}\n\n"
                 f"⬅ روش انجام معامله: {method_text_safe}\n\n"
                 f"⬅ توضیحات: {offer_message_text}\n\n"
                 "<b>جزئیات تسویه در صورت تأیید معامله:</b>\n"
+                f"کارمزد این معامله: <b>{fee_in_currency_text_safe} {currency_text_safe}</b>\n"
+                f"معادل کارمزد به تومان: <b>{fee_toman_text_safe} تومان</b>\n\n"
                 f"در صورت پذیرش نرخ ثبت‌شده، با پرداخت مبلغ "
                 f"<b>{final_amount_text_safe} تومان</b> (با احتساب کارمزد)، "
-                f"مقدار <b>{amount_text}</b> دریافت خواهید کرد.\n\n"
+                f"مقدار <b>{amount_text_safe}</b> دریافت خواهید کرد.\n\n"
                 "⚡این پیام را به ادمین ارسال کنید تا هماهنگی‌های بعدی صورت پذیرد."
             )
         )
     except Exception as e:
         print("SEND ACCEPT MESSAGE ERROR:", type(e), repr(e))
 
-    # ✅ آپدیت پیام مالک
     base_text = q.message.text or q.message.caption or ""
     new_text = "🟩✅ تایید شد\n━━━━━━━━━━━━━━\n" + base_text
 
@@ -200,12 +262,12 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await sync_to_async(offer.save)(update_fields=["status"])
 
     offer_label = (
-        f"{offer.unit_price_irt:,} تومان "
+        f"{format_money(offer.unit_price_irt)} تومان "
         f"در {jalali_with_month_name(offer.created_at)}"
     )
 
     await sync_to_async(set_offer_status_in_channel)(
-        offer.request.id,
+        offer.request_id,
         offer.id,
         offer_label,
         "REJECTED"

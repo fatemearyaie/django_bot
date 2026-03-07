@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from decimal import Decimal, ROUND_HALF_UP
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -89,6 +89,8 @@ class OfferDraft:
     proposed_rate: Optional[int] = None
     note: Optional[str] = None
     request_title: Optional[str] = None
+    request_amount: Optional[Decimal] = None
+    request_currency: Optional[str] = None
 
 
 def _rk(rows: list[list[str]]) -> ReplyKeyboardMarkup:
@@ -221,17 +223,87 @@ def _ad_text(req: TradeRequest) -> str:
         return f"[مشاهده آگهی]({link})"
     return f"#{req.id}"
 
+def get_trade_fee(currency: str, amount) -> Decimal:
+    currency = (currency or "").upper()
+    amount = Decimal(str(amount or 0))
+
+    if amount <= 0:
+        return Decimal("0")
+
+    if currency == "EUR":
+        if amount <= 250:
+            return Decimal("1")
+        elif amount <= 500:
+            return Decimal("1.5")
+        else:
+            return (amount * Decimal("0.003")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    if currency == "USD":
+        if amount <= 250:
+            return Decimal("1.2")
+        elif amount <= 500:
+            return Decimal("1.8")
+        else:
+            return (amount * Decimal("0.0035")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    if currency == "AED":
+        if amount <= 250:
+            return Decimal("4.33")
+        elif amount <= 500:
+            return Decimal("6.5")
+        else:
+            return (amount * Decimal("0.013")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    return Decimal("0")
+def format_money(val) -> str:
+    if val is None:
+        return "—"
+
+    d = Decimal(str(val))
+    if d == d.to_integral():
+        return f"{int(d):,}"
+    return f"{d:,.2f}"
 
 def _offer_preview(d: OfferDraft) -> str:
-    fee = int(config("TRADE_REQUEST_FEE"))
+    fee_in_currency = Decimal("0")
+    fee_toman = None
+    final_amount_toman = None
+
+    if d.request_amount is not None and d.request_currency:
+        fee_in_currency = get_trade_fee(d.request_currency, d.request_amount)
+
+    if d.proposed_rate is not None and d.request_amount is not None:
+        rate_decimal = Decimal(str(d.proposed_rate))
+        amount_decimal = Decimal(str(d.request_amount))
+
+        fee_toman = (fee_in_currency * rate_decimal).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+
+        base_amount_toman = (amount_decimal * rate_decimal).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+
+        final_amount_toman = (base_amount_toman + fee_toman).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+
+    request_rate_text = f"{format_money(d.request_rate)}" if d.request_rate is not None else "—"
+    proposed_rate_text = f"{format_money(d.proposed_rate)}" if d.proposed_rate is not None else "—"
+    fee_toman_text = f"{format_money(fee_toman)} تومان" if fee_toman is not None else "—"
+    final_amount_text = f"{format_money(final_amount_toman)} تومان" if final_amount_toman is not None else "—"
 
     return (
         "🧾 پیش‌نمایش پیشنهاد شما:\n\n"
         f"📌 آگهی: {d.request_title or f'#{d.request_id}'}\n"
-        f"💱 نرخ درخواست (تومان/واحد): {d.request_rate if d.request_rate is not None else '—'}\n"
-        f"✅ نرخ پیشنهادی شما (تومان/واحد): {d.proposed_rate}\n"
+        f"💱 نرخ درخواست (تومان/واحد): {request_rate_text}\n"
+        f"✅ نرخ پیشنهادی شما (تومان/واحد): {proposed_rate_text}\n"
         f"📝 توضیحات: {d.note if d.note else '—'}\n"
-        f"کارمزد: {fee}\n\n"
+        f"💸 کارمزد: {fee_toman_text}\n"
+        f"💰 مبلغ نهایی: {final_amount_text}\n\n"
         "مطمئنی می‌خوای ارسال بشه؟"
     )
 
@@ -299,6 +371,8 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         proposed_rate=None,
         note=None,
         request_title=_req_title(req),
+        request_amount=req.amount,
+        request_currency=req.currency,
     )
 
 
@@ -416,6 +490,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if text == BTN_CANCEL:
         return await offer_cancel(update, context)
 
+    # دیگه "نه منصرف شدم" نداریم. فقط ارسال/انصراف.
     if text != BTN_SEND:
         await msg.reply_text(
             "لطفاً فقط یکی از گزینه‌ها رو انتخاب کن.",
@@ -453,6 +528,17 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             reply_markup=_main_menu_kb(),
         )
         return ConversationHandler.END
+
+    best_prev = await _get_sender_last_offer_price(sender.id, req.id)
+    if best_prev is not None and int(d.proposed_rate) <= int(best_prev):
+        await msg.reply_text(
+            f"❌ شما قبلاً برای این درخواست پیشنهاد {best_prev:,} تومان/واحد ثبت کرده‌اید.\n"
+            "پیشنهاد جدید باید *بالاتر* از پیشنهاد قبلی شما باشد.\n\n"
+            "اگر می‌خواهی نرخ را تغییر بدهی، دوباره روی درخواست کلیک کن و عدد بالاتر وارد کن.",
+            parse_mode="Markdown",
+            reply_markup=_rk_with_cancel([[BTN_SEND]]),
+        )
+        return CONFIRM
 
     try:
         offer = await _create_offer(
@@ -512,6 +598,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         reply_markup=ReplyKeyboardRemove(),
     )
     return ConversationHandler.END
+
 
 async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop("offer_draft", None)
