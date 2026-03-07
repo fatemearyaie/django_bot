@@ -60,6 +60,15 @@ def format_money(val) -> str:
     return f"{d:,.2f}"
 
 
+def calculate_score_from_fee_toman(fee_toman) -> int:
+    fee_toman = Decimal(str(fee_toman or 0))
+
+    if fee_toman < Decimal("100000"):
+        return 0
+
+    return int(fee_toman // Decimal("100000")) * 5
+
+
 @sync_to_async
 def get_offer_for_owner(offer_id: int, owner_tg_id: int):
     return (
@@ -96,6 +105,50 @@ def _accept_offer_and_close_request(offer: TradeOffer):
         ).exclude(id=offer.id).update(status=TradeOffer.Status.REJECTED)
 
 
+@sync_to_async
+def _apply_scores_for_accepted_offer(offer_id: int):
+    offer = (
+        TradeOffer.objects
+        .select_related("sender", "request")
+        .get(id=offer_id)
+    )
+
+    req = offer.request
+    user = offer.sender
+
+    amount_val = getattr(req, "amount", None)
+    currency_value = getattr(req, "currency", None)
+    price_val = getattr(offer, "unit_price_irt", None)
+
+    amount_decimal = Decimal(str(amount_val)) if amount_val is not None else None
+    price_decimal = Decimal(str(price_val)) if price_val is not None else None
+
+    fee_in_currency = get_trade_fee(currency_value, amount_decimal) if amount_decimal is not None else Decimal("0")
+
+    fee_toman = Decimal("0")
+    if price_decimal is not None:
+        fee_toman = (fee_in_currency * price_decimal).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP
+        )
+
+    accepted_count = TradeOffer.objects.filter(
+        sender=user,
+        status=TradeOffer.Status.ACCEPTED
+    ).count()
+
+    score_to_add = 0
+
+    if accepted_count == 1:
+        score_to_add += 5
+
+    score_to_add += calculate_score_from_fee_toman(fee_toman)
+
+    if score_to_add > 0:
+        user.total_points = (user.total_points or 0) + score_to_add
+        user.save(update_fields=["total_points"])
+
+
 async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -116,6 +169,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await _accept_offer_and_close_request(offer)
+    await _apply_scores_for_accepted_offer(offer.id)
 
     offer_label = (
         f"{format_money(offer.unit_price_irt)} تومان "
@@ -215,7 +269,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"⬅ روش انجام معامله: {method_text_safe}\n\n"
                 f"⬅ توضیحات: {offer_message_text}\n\n"
                 "<b>جزئیات تسویه در صورت تأیید معامله:</b>\n"
-                
+
                 f"در صورت پذیرش نرخ ثبت‌شده، با پرداخت مبلغ "
                 f"<b>{final_amount_text_safe} تومان</b> (با احتساب کارمزد)، "
                 f"مقدار <b>{amount_text_safe}</b> دریافت خواهید کرد.\n\n"

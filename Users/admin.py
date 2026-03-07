@@ -11,7 +11,8 @@ class CustomUserAdmin(ModelAdmin):
     list_display = ['username', 'phone','date_joined', 'name', 'last_name', 'country', 'is_registered']
     search_fields = ['username', 'phone', ]
     fields = ['username','phone', 'name', 'last_name', 'country',
-              'telegram_username', 'telegram_id', 'is_registered']
+              'telegram_username', 'telegram_id', 'is_registered','total_points',
+              'used_points','referral_code']
     list_filter = ['is_registered', 'country']
 
 
