@@ -122,14 +122,17 @@ def _main_menu_inline_kb() -> InlineKeyboardMarkup:
     )
 
 
+# Send the user back to the main menu.
 async def _go_home(message_obj):
     await message_obj.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
 
 
+# Open the profile entry point from inline navigation.
 async def _go_profile(message_obj):
     await message_obj.reply_text("👤 پروفایل", reply_markup=_main_menu_kb())
 
 
+# Handle inline navigation actions used inside the offer flow.
 async def offerflow_inline_nav_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     if not q:
@@ -148,6 +151,7 @@ async def offerflow_inline_nav_cb(update: Update, context: ContextTypes.DEFAULT_
         return
 
 
+# Check whether the user is a member of the required Telegram channel.
 async def is_member_of_required_channel(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
     try:
         member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
@@ -156,6 +160,7 @@ async def is_member_of_required_channel(context: ContextTypes.DEFAULT_TYPE, user
         return False
 
 
+# Load an active trade request that can still receive offers.
 @sync_to_async
 def _get_trade_request_for_offer(request_id: int) -> TradeRequest:
     return (
@@ -171,6 +176,7 @@ def _get_sender_from_tg_id(tg_id: int) -> CustomUser:
     return CustomUser.objects.get(telegram_id=tg_id)
 
 
+# Create a new offer row for the selected trade request.
 @sync_to_async
 def _create_offer(req: TradeRequest, sender: CustomUser, unit_price_irt: int, message: str) -> TradeOffer:
     return TradeOffer.objects.create(
@@ -186,6 +192,7 @@ def _req_title(req: TradeRequest) -> str:
     return f"درخواست #{req.id} ({role_fa} {req.currency})"
 
 
+# Build the Telegram channel post link for the request, if available.
 def _channel_post_link(req: TradeRequest) -> str | None:
     try:
         msg_id = getattr(req, "channel_message_id", None)
@@ -215,6 +222,7 @@ def _ad_text(req: TradeRequest) -> str:
         return f"[مشاهده آگهی]({link})"
     return f"#{req.id}"
 
+# Calculate the trade fee based on currency and request amount.
 def get_trade_fee(currency: str, amount) -> Decimal:
     currency = (currency or "").upper()
     amount = Decimal(str(amount or 0))
@@ -256,6 +264,7 @@ def format_money(val) -> str:
         return f"{int(d):,}"
     return f"{d:,.2f}"
 
+# Build the final preview text shown before submitting the offer.
 def _offer_preview(d: OfferDraft) -> str:
     fee_in_currency = Decimal("0")
     fee_toman = None
@@ -299,6 +308,7 @@ def _offer_preview(d: OfferDraft) -> str:
         "مطمئنی می‌خوای ارسال بشه؟"
     )
 
+# Entry point for deep-linked offer creation from a channel post.
 async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
     tg = update.effective_user
@@ -393,6 +403,7 @@ async def offer_start_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     return RATE
 
+# Handle the rate input step and store the proposed unit price.
 async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
     if not msg:
@@ -437,6 +448,7 @@ async def offer_rate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return NOTE
 
 
+# Handle the optional note step before showing the confirmation preview.
 async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
     if not msg:
@@ -468,6 +480,7 @@ async def offer_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return CONFIRM
 
 
+# Final confirmation step: create the offer, update the channel, and notify the request owner.
 async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.effective_message
     tg = update.effective_user
@@ -582,6 +595,7 @@ async def offer_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return ConversationHandler.END
 
 
+# Cancel the current offer flow and clear the draft from user session data.
 async def offer_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop("offer_draft", None)
     msg = update.effective_message
@@ -626,6 +640,7 @@ def get_user_by_tg(tg_id: int):
     return CustomUser.objects.filter(telegram_id=tg_id).first()
 
 
+# Fetch the current user's offers with manual pagination.
 @sync_to_async
 def fetch_user_offers(user_id: int, page: int):
     qs = (
@@ -656,6 +671,7 @@ def build_myoffers_pagination_keyboard(page: int, total: int) -> InlineKeyboardM
     return InlineKeyboardMarkup(rows)
 
 
+# Render and send/edit the paginated "my offers" view.
 async def send_my_offers_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_offers(user.id, page)
 
@@ -729,6 +745,7 @@ async def send_my_offers_list(message_obj, user: CustomUser, page: int, *, edit:
         )
 
 
+# Entry point for showing the current user's submitted offers.
 async def my_offers_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
@@ -738,6 +755,7 @@ async def my_offers_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_my_offers_list(update.effective_message, user, page=0, edit=False)
 
 
+# Handle pagination callbacks for the "my offers" screen.
 async def my_offers_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -759,6 +777,7 @@ async def my_offers_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_my_offers_list(q.message, user, page=page, edit=True)
 
 
+# Register handlers related to the user's offer history and inline navigation.
 def get_my_offers_handlers():
     return [
         CommandHandler("offers", my_offers_entry),
@@ -768,6 +787,7 @@ def get_my_offers_handlers():
     ]
 
 
+# Build the multi-step conversation for creating a new trade offer.
 def build_offer_conversation() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[

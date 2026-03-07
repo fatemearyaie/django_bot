@@ -17,6 +17,7 @@ from Trade.services.offers_service import (
 from bot.flow.offer import jalali_with_month_name
 
 
+# Calculate the trade fee based on currency and transaction amount.
 def get_trade_fee(currency: str, amount) -> Decimal:
     currency = (currency or "").upper()
     amount = Decimal(str(amount or 0))
@@ -61,6 +62,7 @@ def format_money(val) -> str:
     return f"{d:,.2f}"
 
 
+# Convert fee amount in toman into reward points.
 def calculate_score_from_fee_toman(fee_toman) -> int:
     fee_toman = Decimal(str(fee_toman or 0))
 
@@ -90,6 +92,7 @@ def get_other_rejected_offers(request_id: int, accepted_offer_id: int):
     )
 
 
+# Accept the selected offer, close the request, and reject remaining pending offers.
 @sync_to_async
 def _accept_offer_and_close_request(offer: TradeOffer):
     with transaction.atomic():
@@ -106,6 +109,7 @@ def _accept_offer_and_close_request(offer: TradeOffer):
         ).exclude(id=offer.id).update(status=TradeOffer.Status.REJECTED)
 
 
+# Apply user and referral scores after an offer is accepted.
 @sync_to_async
 def _apply_scores_for_accepted_offer(offer_id: int):
     offer = (
@@ -160,6 +164,8 @@ def _apply_scores_for_accepted_offer(offer_id: int):
         user.referral_first_trade_rewarded = True
         user.save(update_fields=["referral_first_trade_rewarded"])
 
+
+# Handle accepting an offer, update channel state, notify users, and refresh the message UI.
 async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -310,6 +316,7 @@ async def offer_accept_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
 
 
+# Handle rejecting an offer, update channel state, notify the sender, and remove the owner message.
 async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -349,6 +356,7 @@ async def offer_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
 
 
+# Show basic sender information for the selected offer in a Telegram alert.
 async def offer_user_info_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     offer_id = int(q.data.split(":")[1])

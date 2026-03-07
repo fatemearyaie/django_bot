@@ -189,6 +189,7 @@ def build_myreq_list_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
+# Render and send/edit the paginated list of the current user's requests and related offers.
 async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edit: bool = False):
     items, total = await fetch_user_requests(user.id, page)
 
@@ -261,6 +262,7 @@ async def send_my_requests_list(message_obj, user: CustomUser, page: int, *, edi
         )
 
 
+# Entry point for showing the current user's submitted requests.
 async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
@@ -270,6 +272,7 @@ async def my_requests_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_my_requests_list(update.message, user, page=0, edit=False)
 
 
+# Handle pagination callbacks for the "my requests" screen.
 async def my_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -442,6 +445,7 @@ def is_cancel_text(text: str | None) -> bool:
     return (text or "").strip() == BTN_CANCEL
 
 
+# Build and send the request preview before final submission.
 async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get("tr", {})
 
@@ -471,6 +475,7 @@ async def send_preview(message_obj, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# Handle field selection from the inline edit menu during request editing.
 async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -519,6 +524,7 @@ async def tr_edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
     return TR_EDIT_MENU
 
 
+# Handle the updated value for the selected request field and return to preview.
 async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     field = context.user_data.get("tr_edit_field")
     data = context.user_data.get("tr", {})
@@ -584,6 +590,7 @@ async def tr_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_CONFIRM
 
 
+# Handle request management actions such as edit or delete for an existing request.
 async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -645,6 +652,7 @@ async def req_manage_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+# Entry point for creating a new trade request.
 async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     user = await get_user_by_tg(tg.id)
@@ -663,6 +671,7 @@ async def new_request_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_ROLE
 
 
+# Handle role selection step in the trade request flow.
 async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (update.message.text or "").strip()
 
@@ -679,6 +688,7 @@ async def tr_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_CURRENCY
 
 
+# Handle currency selection step in the trade request flow.
 async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (update.message.text or "").strip()
 
@@ -696,6 +706,7 @@ async def tr_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_AMOUNT
 
 
+# Handle amount input step in the trade request flow.
 async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (update.message.text or "").strip()
 
@@ -716,6 +727,7 @@ async def tr_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_UNIT_PRICE
 
 
+# Handle unit price input step in the trade request flow.
 async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (update.message.text or "").strip()
 
@@ -735,6 +747,7 @@ async def tr_unit_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_METHOD
 
 
+# Handle deal method selection step in the trade request flow.
 async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (update.message.text or "").strip()
 
@@ -754,6 +767,7 @@ async def tr_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_DESC
 
 
+# Handle optional description step in the trade request flow.
 async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (update.message.text or "").strip()
 
@@ -769,6 +783,7 @@ async def tr_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TR_CONFIRM
 
 
+# Final confirmation step for creating or editing a trade request.
 async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
 
@@ -863,6 +878,7 @@ async def tr_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+# Cancel the trade request creation/edit flow and clear temporary state.
 async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("tr", None)
     context.user_data.pop("editing_req_id", None)
@@ -877,6 +893,7 @@ async def tr_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+# Register handlers for browsing the user's request history.
 def get_my_requests_handlers():
     return [
         CommandHandler("requests", my_requests_entry),
@@ -887,6 +904,7 @@ def get_my_requests_handlers():
     ]
 
 
+# Build the full conversation handler for creating and editing trade requests.
 def get_trade_request_conversation():
     return ConversationHandler(
         entry_points=[

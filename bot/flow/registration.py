@@ -130,7 +130,7 @@ def is_profile_complete(user: CustomUser) -> bool:
     return bool(user and user.name and user.last_name and user.country_id and user.phone)
 
 
-# ====== Channel membership check ======
+# Check whether the user is a member of the required Telegram channel.
 async def is_member_of_required_channel(bot, user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
@@ -143,7 +143,7 @@ async def is_member_of_required_channel(bot, user_id: int) -> bool:
         return False
 
 
-# ====== Send helper (fix ReplyKeyboard in callbacks) ======
+# Send text safely from either a normal message context or a callback context.
 async def send_text(update: Update, text: str, reply_markup=None):
     if update.message:
         return await update.message.reply_text(text, reply_markup=reply_markup)
@@ -152,7 +152,7 @@ async def send_text(update: Update, text: str, reply_markup=None):
     return None
 
 
-# ====== UI helpers ======
+# Show the current user's profile and available edit actions.
 async def show_profile(update: Update, user: CustomUser):
     country_name = await get_user_country_name(user)
     text = (
@@ -166,6 +166,7 @@ async def show_profile(update: Update, user: CustomUser):
     await send_text(update, text, reply_markup=build_edit_inline_keyboard())
 
 
+# Show a registration/edit preview before final confirmation.
 async def show_preview_and_ask_confirm(update: Update, user: CustomUser, country_name: str, phone: str):
     preview_text = (
         "🧾 پیش‌نمایش اطلاعات شما:\n\n"
@@ -178,7 +179,7 @@ async def show_preview_and_ask_confirm(update: Update, user: CustomUser, country
     await send_text(update, preview_text, reply_markup=build_confirm_keyboard())
 
 
-# ====== Entry: /profile or 👤پروفایل ======
+# Entry point for profile view or registration flow.
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg = update.effective_user
     existing = await get_user_by_tg_id(tg.id)
@@ -195,7 +196,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return NAME
 
 
-# ====== Start register inline button callback ======
+# Start the registration flow from the inline register button.
 async def start_register_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -205,7 +206,7 @@ async def start_register_callback(update: Update, context: ContextTypes.DEFAULT_
     return NAME
 
 
-# ====== Registration Steps ======
+# Save the first name and move to the last name step.
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     user.name = (update.message.text or "").strip()
@@ -215,6 +216,7 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return LAST_NAME
 
 
+# Save the last name and show the list of available countries.
 async def get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     user.last_name = (update.message.text or "").strip()
@@ -230,6 +232,7 @@ async def get_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return COUNTRY
 
 
+# Save the selected country and ask for the user's phone number.
 async def country_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     country_name = (update.message.text or "").strip()
@@ -247,6 +250,7 @@ async def country_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return PHONE
 
 
+# Receive the contact payload and show the final preview.
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
 
@@ -262,7 +266,7 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONFIRM
 
 
-# ====== Confirm Step ======
+# Final confirmation step for profile registration.
 async def confirm_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     text = (update.message.text or "").strip()
@@ -306,7 +310,7 @@ async def confirm_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# ====== check_join callback ======
+# Re-check channel membership after the user presses the join confirmation button.
 async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -334,7 +338,7 @@ async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     return ConversationHandler.END
 
 
-# ====== Edit Menu callback (Inline buttons) ======
+# Handle inline edit menu actions for profile updates.
 async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -373,7 +377,7 @@ async def edit_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return EDIT_MENU
 
 
-# ====== Edit handlers ======
+# Update the user's first name.
 async def edit_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     user.name = (update.message.text or "").strip()
@@ -389,6 +393,7 @@ async def edit_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONFIRM
 
 
+# Update the user's last name.
 async def edit_last_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     user.last_name = (update.message.text or "").strip()
@@ -404,6 +409,7 @@ async def edit_last_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONFIRM
 
 
+# Update the user's country.
 async def edit_country_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user.id, update.effective_user.username)
     country_name_input = (update.message.text or "").strip()
@@ -427,6 +433,7 @@ async def edit_country_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONFIRM
 
 
+# Update the user's phone number or keep it pending until final confirmation.
 async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.contact:
         await send_text(update, "❌ شماره را فقط با دکمه ارسال شماره تماس ارسال کن.", reply_markup=build_contact_keyboard())
@@ -447,13 +454,13 @@ async def edit_phone_contact(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return CONFIRM
 
 
-# ====== Cancel ======
+# Cancel the registration/edit flow.
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, "❌ لغو شد.", reply_markup=build_main_menu_keyboard())
     return ConversationHandler.END
 
 
-# ====== post_init commands ======
+# Register bot command shortcuts after application startup.
 async def post_init(app):
     commands = [
         BotCommand("new_request", "درخواست جدید"),
@@ -464,6 +471,7 @@ async def post_init(app):
     await app.bot.set_my_commands(commands)
 
 
+# Build the full registration and profile-edit conversation handler.
 def build_registration_conversation():
     return ConversationHandler(
         entry_points=[

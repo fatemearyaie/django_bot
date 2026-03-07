@@ -10,6 +10,7 @@ BOT_USERNAME = "excoinmarket_bot"
 FOOTER_PREFIX = "ثبت درخواست جدید ⬅️"
 
 
+# Build the formatted channel post text for a trade request.
 def build_channel_post_text(req: TradeRequest) -> str:
     is_buyer = req.role == TradeRequest.Role.BUYER
 
@@ -48,6 +49,7 @@ def build_channel_keyboard(req_id: int) -> InlineKeyboardMarkup:
     ])
 
 
+# Publish the trade request to the Telegram channel and store message metadata.
 def publish_trade_request_to_channel(req_id: int) -> bool:
     token = os.environ.get("API_TOKEN")
     if not token:

@@ -13,6 +13,7 @@ CUR_LABEL = {"USD": "دلار", "EUR": "یورو", "AED": "درهم"}
 PAGE_SIZE = 1
 
 
+# Build the public/private Telegram channel link for a request post.
 def build_channel_link(req: TradeRequest) -> str | None:
     try:
         msg_id = getattr(req, "channel_message_id", None)
@@ -35,18 +36,20 @@ def build_channel_link(req: TradeRequest) -> str | None:
         return None
 
 
+# Return the request id as markdown text, linked to the channel post if available.
 def _req_id_text_md(req: TradeRequest) -> str:
     link = build_channel_link(req)
     if link:
-        # Markdown link
         return f"[#{req.id}]({link})"
     return f"#{req.id}"
 
 
+# Convert request role to Persian label.
 def _role_fa(role: str) -> str:
     return "خریدار" if role == TradeRequest.Role.BUYER else "فروشنده"
 
 
+# Convert internal status value to Persian display text.
 def _status_fa(status: str) -> str:
     mapping = {
         TradeRequest.Status.DRAFT: "پیش‌نویس",
@@ -57,6 +60,7 @@ def _status_fa(status: str) -> str:
     return mapping.get(status, status)
 
 
+# Fetch approved requests for a currency with manual pagination.
 @sync_to_async
 def _fetch_active_requests(currency: str, page: int):
     qs = (
@@ -70,6 +74,7 @@ def _fetch_active_requests(currency: str, page: int):
     return list(qs[start:end]), total
 
 
+# Build pagination keyboard for browsing request pages.
 def _pagination_kb(currency: str, page: int, total: int) -> InlineKeyboardMarkup:
     max_page = max((total - 1) // PAGE_SIZE, 0)
     rows = []
@@ -86,6 +91,7 @@ def _pagination_kb(currency: str, page: int, total: int) -> InlineKeyboardMarkup
     return InlineKeyboardMarkup(rows)
 
 
+# Render and send/edit the paginated request message for a selected currency.
 async def _send_currency_requests(message_obj, currency: str, page: int, *, edit: bool):
     items, total = await _fetch_active_requests(currency, page)
 
@@ -134,6 +140,7 @@ async def _send_currency_requests(message_obj, currency: str, page: int, *, edit
         )
 
 
+# Handle /start deep-link entry and open the first page for the selected currency.
 async def start_currency_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.effective_message
     if not msg:
@@ -154,6 +161,7 @@ async def start_currency_entry(update: Update, context: ContextTypes.DEFAULT_TYP
     await _send_currency_requests(msg, currency, page=0, edit=False)
 
 
+# Handle pagination callbacks and home navigation.
 async def currency_requests_page_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     if not q:
@@ -164,7 +172,6 @@ async def currency_requests_page_cb(update: Update, context: ContextTypes.DEFAUL
         from bot.handlers import build_main_menu_keyboard
         await q.message.reply_text("🏠 برگشتی به منوی اصلی.", reply_markup=build_main_menu_keyboard())
         return
-
 
     try:
         _, cur, page_str = q.data.split(":")
@@ -179,10 +186,10 @@ async def currency_requests_page_cb(update: Update, context: ContextTypes.DEFAUL
     await _send_currency_requests(q.message, cur, page=page, edit=True)
 
 
+# Register command and callback handlers for currency request browsing.
 def get_currency_requests_handlers():
     return [
         CommandHandler("start", start_currency_entry),
-
         CallbackQueryHandler(currency_requests_page_cb, pattern=r"^curreq:(USD|EUR|AED):\d+$"),
         CallbackQueryHandler(currency_requests_page_cb, pattern=r"^curreq:home$"),
     ]

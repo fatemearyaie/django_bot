@@ -21,6 +21,7 @@ MARKER = "پیشنهادهای ارسال شده:"
 FOOTER_PREFIX = "ثبت درخواست جدید"
 
 
+# Finalize a closed request in the channel by replacing the post footer/state text.
 def finalize_closed_request_in_channel(req_id: int) -> bool:
     token = os.environ.get("API_TOKEN")
     if not token:
@@ -175,6 +176,7 @@ def _extract_offer_id(line: str) -> int | None:
         return None
 
 
+# Split the stored channel post into head, offer lines, and footer.
 def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
     def _pop_footer_from_lines(lines: list[str]) -> tuple[list[str], str]:
         while lines and not lines[-1].strip():
@@ -213,6 +215,7 @@ def _split_base_text(base_text: str) -> tuple[str, list[str], str]:
 # -----------------------
 # Core: Upsert
 # -----------------------
+# Insert or update a single offer line inside the channel post and re-publish the edited text.
 def upsert_offer_line_in_channel(req_id: int, offer_id: int, offer_name: str, status: str = "PENDING") -> bool:
     token = os.environ.get("API_TOKEN")
     if not token:
@@ -324,6 +327,7 @@ def set_offer_status_in_channel(req_id: int, offer_id: int, offer_name: str, sta
         status=status,
     )
 
+# Build the direct/public/private Telegram link for a request's channel post.
 def channel_post_link(req: TradeRequest) -> str | None:
     try:
         msg_id = getattr(req, "channel_message_id", None)
